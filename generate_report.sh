@@ -2,6 +2,15 @@
 
 # Script para gerar relatórios HTML a partir dos logs de análise
 
+# Cores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
 # Verificar argumentos
 if [ $# -lt 3 ]; then
     echo "Uso: $0 <tipo_analise> <alvo> <arquivo_log>"
@@ -401,3 +410,90 @@ cat > "$REPORT_FILE" << EOL
         </div>
         
         <!-- Fatores de risco para análise de IP -->
+        {% if [ "$ANALYSIS_TYPE" = "Análise de IP" ] && [ -n "$IP_RISK_FACTORS" ]; then %}
+        <h2>Fatores de Risco Identificados</h2>
+        <ul>
+        {% echo "$IP_RISK_FACTORS" | while read -r factor; do %}
+            <li>$factor</li>
+        {% done %}
+        </ul>
+        {% fi %}
+        
+        <h2>Detalhes da Análise</h2>
+        
+        <div class="log-section">
+            <h3>Log da Análise</h3>
+            <pre class="log-content">$LOG_CONTENT</pre>
+        </div>
+        
+        <div class="recommendations">
+            <h2>Recomendações de Segurança</h2>
+            <ul>
+                <li>Mantenha seus sistemas atualizados</li>
+                <li>Use antivírus atualizado</li>
+                <li>Seja cauteloso com links e anexos suspeitos</li>
+                <li>Verifique a autenticidade de emails antes de responder</li>
+                <li>Monitore atividades suspeitas em sua rede</li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p>Relatório gerado pelo <strong>Security Analyzer Tool</strong></p>
+            <p><small>Este relatório é apenas informativo e não substitui uma análise profissional de segurança.</small></p>
+            <p><small>Desenvolvido por @cybersecwonderwoman</small></p>
+        </div>
+    </div>
+</body>
+</html>
+EOL
+
+# Determinar uma porta disponível para o servidor web
+PORT=8000
+while nc -z localhost $PORT 2>/dev/null; do
+    PORT=$((PORT+1))
+done
+
+echo ""
+echo -e "${GREEN}Relatório gerado com sucesso!${NC}"
+echo "Arquivo: $REPORT_FILE"
+echo ""
+
+# Verificar se python3 está disponível
+if command -v python3 > /dev/null; then
+    echo "Iniciando servidor web local..."
+    echo "URL: http://localhost:$PORT/$(basename "$REPORT_FILE")"
+    
+    # Iniciar servidor web em segundo plano
+    (cd "$(dirname "$REPORT_FILE")" && python3 -m http.server $PORT > /dev/null 2>&1 &)
+    
+    # Aguardar um momento para o servidor iniciar
+    sleep 2
+    
+    # Abrir navegador
+    if command -v xdg-open > /dev/null; then
+        echo "Abrindo no navegador..."
+        xdg-open "http://localhost:$PORT/$(basename "$REPORT_FILE")" > /dev/null 2>&1 &
+    elif command -v open > /dev/null; then
+        echo "Abrindo no navegador..."
+        open "http://localhost:$PORT/$(basename "$REPORT_FILE")" > /dev/null 2>&1 &
+    else
+        echo "Não foi possível abrir o navegador automaticamente."
+        echo "Abra manualmente: http://localhost:$PORT/$(basename "$REPORT_FILE")"
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}Nota: O servidor web ficará ativo na porta $PORT${NC}"
+    echo -e "${YELLOW}Para parar o servidor: pkill -f 'python3 -m http.server $PORT'${NC}"
+else
+    echo -e "${YELLOW}Python3 não encontrado. Abrindo arquivo diretamente...${NC}"
+    
+    # Tentar abrir o arquivo HTML diretamente
+    if command -v xdg-open > /dev/null; then
+        xdg-open "$REPORT_FILE" > /dev/null 2>&1 &
+    elif command -v open > /dev/null; then
+        open "$REPORT_FILE" > /dev/null 2>&1 &
+    else
+        echo "Não foi possível abrir o navegador automaticamente."
+        echo "Abra manualmente: $REPORT_FILE"
+    fi
+fi

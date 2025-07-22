@@ -4,7 +4,8 @@
 # Menu Interativo - Security Analyzer Tool
 # ========================================
 
-source "$(dirname "$0")/config.sh"
+# Configurações básicas
+SCRIPT_DIR="$(dirname "$0")"
 
 # Função para exibir o menu principal
 show_main_menu() {

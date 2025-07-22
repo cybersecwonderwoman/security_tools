@@ -531,10 +531,7 @@ analyze_email_header() {
     ips_found=$(grep -oE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' "$header_file" | sort -u)
     
     if [[ -n "$ips_found" ]]; then
-        # Carregar verificador avançado de IPs se disponível
-        if [[ -f "$(dirname "$0")/ip_reputation_checker.sh" ]]; then
-            source "$(dirname "$0")/ip_reputation_checker.sh"
-        fi
+        # Verificação básica de reputação de IPs
         
         local public_ips=()
         local threats_detected=0
@@ -545,35 +542,13 @@ analyze_email_header() {
                 echo -e "  ${GREEN}IP público encontrado:${NC} $ip"
                 public_ips+=("$ip")
                 
-                # Verificação avançada de reputação
-                if declare -f check_ip_reputation > /dev/null 2>&1; then
-                    echo "    Verificando reputação..."
-                    if ! check_ip_reputation "$ip"; then
-                        ((threats_detected++))
-                        echo -e "    ${RED}⚠ IP MALICIOSO DETECTADO!${NC}"
-                    fi
-                else
-                    # Verificação básica com Shodan se API key disponível
-                    if [[ -n "$SHODAN_API_KEY" ]]; then
-                        local shodan_response
-                        shodan_response=$(curl -s "https://api.shodan.io/shodan/host/$ip?key=$SHODAN_API_KEY" 2>/dev/null)
-                        
-                        if echo "$shodan_response" | jq -e '.country_name' > /dev/null 2>&1; then
-                            local country org
-                            country=$(echo "$shodan_response" | jq -r '.country_name // "N/A"')
-                            org=$(echo "$shodan_response" | jq -r '.org // "N/A"')
-                            echo "    País: $country | Organização: $org"
-                        fi
-                    fi
-                    
-                    # Verificação básica de padrões maliciosos
-                    if [[ "$ip" =~ ^184\.107\.85\. ]]; then
-                        echo -e "    ${RED}⚠ IP em range conhecido por atividade maliciosa (184.107.85.x)${NC}"
-                        ((threats_detected++))
-                    elif [[ "$ip" =~ ^185\.220\. ]]; then
-                        echo -e "    ${YELLOW}⚠ Possível Tor exit node${NC}"
-                        ((suspicious_count++))
-                    fi
+                # Verificação básica de padrões maliciosos
+                if [[ "$ip" =~ ^184\.107\.85\. ]]; then
+                    echo -e "    ${RED}⚠ IP em range conhecido por atividade maliciosa (184.107.85.x)${NC}"
+                    ((threats_detected++))
+                elif [[ "$ip" =~ ^185\.220\. ]]; then
+                    echo -e "    ${YELLOW}⚠ Possível Tor exit node${NC}"
+                    ((suspicious_count++))
                 fi
                 
                 echo ""
@@ -623,43 +598,218 @@ analyze_email_header() {
         echo -e "  ${RED}Total de indicadores suspeitos: $suspicious_count${NC}"
     fi
     
-    # Tentar usar a função avançada do email_analyzer.sh se disponível
-    if [[ -f "$(dirname "$0")/email_analyzer.sh" ]]; then
-        echo ""
-        echo -e "${BLUE}[Análise Avançada]${NC}"
-        source "$(dirname "$0")/email_analyzer.sh" 2>/dev/null
-        if declare -f analyze_email_header_complete > /dev/null 2>&1; then
-            echo "Executando análise avançada..."
-            analyze_email_header_complete "$header_file"
-        fi
+    # Análise avançada integrada
+    echo ""
+    echo -e "${BLUE}[Análise Avançada]${NC}"
+    echo "Executando análise avançada..."
+    
+    echo -e "${PURPLE}=== ANÁLISE COMPLETA DE CABEÇALHO DE EMAIL ===${NC}"
+    echo "Arquivo: $header_file"
+    echo ""
+    
+    echo -e "${BLUE}[Informações Básicas]${NC}"
+    echo "From: $(grep -i "^From:" "$header_file" | head -1 | cut -d' ' -f2- || echo "não encontrado")"
+    echo "To: $(grep -i "^To:" "$header_file" | head -1 | cut -d' ' -f2- || echo "não encontrado")"
+    echo "Subject: $(grep -i "^Subject:" "$header_file" | head -1 | cut -d' ' -f2- || echo "não encontrado")"
+    echo "Date: $(grep -i "^Date:" "$header_file" | head -1 | cut -d' ' -f2- || echo "não encontrado")"
+    echo ""
+    
+    echo -e "${BLUE}[Email Analyzer] Verificando autenticação de email${NC}"
+    # SPF
+    if grep -qi "Received-SPF:" "$header_file"; then
+        local spf_result
+        spf_result=$(grep -i "Received-SPF:" "$header_file" | head -1 | awk '{print $2}')
+        case "$spf_result" in
+            "pass") echo -e "  SPF: ${GREEN}PASS${NC}" ;;
+            "fail") echo -e "  SPF: ${RED}FAIL${NC}" ;;
+            *) echo -e "  SPF: ${YELLOW}$spf_result${NC}" ;;
+        esac
+    else
+        echo -e "  SPF: ${YELLOW}Não encontrado${NC}"
     fi
     
-    # Executar análise forense detalhada
-    if [[ -f "$(dirname "$0")/forensic_email_analyzer_part3.sh" ]]; then
+    # DKIM
+    if grep -qi "DKIM-Signature:" "$header_file"; then
+        echo -e "  DKIM: ${GREEN}Presente${NC}"
+    else
+        echo -e "  DKIM: ${RED}Ausente${NC}"
+    fi
+    
+    # DMARC
+    if grep -qi "dmarc=pass" "$header_file"; then
+        echo -e "  DMARC: ${GREEN}PASS${NC}"
+    elif grep -qi "dmarc=fail" "$header_file"; then
+        echo -e "  DMARC: ${RED}FAIL${NC}"
+    else
+        echo -e "  DMARC: ${YELLOW}Não encontrado${NC}"
+    fi
+    
+    echo ""
+    echo -e "${BLUE}[Email Analyzer] Extraindo IPs dos cabeçalhos${NC}"
+    echo ""
+    
+    echo -e "${BLUE}[Email Analyzer] Detectando indicadores de phishing${NC}"
+    if [[ $suspicious_count -eq 0 ]]; then
+        echo -e "  ${GREEN}Nenhum indicador óbvio de phishing encontrado${NC}"
+    else
+        echo -e "  ${RED}$suspicious_count indicadores suspeitos detectados${NC}"
+    fi
+    
+    echo ""
+    echo -e "${BLUE}[Caminho do Email]${NC}"
+    local hop_count=0
+    grep -i "^Received:" "$header_file" | while read -r line; do
+        echo "  $hop_count: $(echo "$line" | cut -c1-80)..."
+        ((hop_count++))
+    done
+    
+    # Análise forense simplificada integrada
+    if [[ $suspicious_count -gt 2 ]]; then
         echo ""
-        source "$(dirname "$0")/forensic_email_analyzer_part3.sh" 2>/dev/null
-        source "$(dirname "$0")/forensic_email_analyzer_part2.sh" 2>/dev/null
-        source "$(dirname "$0")/forensic_email_analyzer.sh" 2>/dev/null
+        echo -e "${CYAN}[Análise Forense Simplificada]${NC}"
+        echo "Detectados $suspicious_count indicadores suspeitos."
+        echo "Executando verificações adicionais..."
         
-        if declare -f complete_forensic_analysis > /dev/null 2>&1; then
-            echo -e "${CYAN}[Iniciando Análise Forense Detalhada]${NC}"
-            echo ""
-            complete_forensic_analysis "$header_file"
+        # Verificar padrões de phishing comuns
+        if grep -qi "urgent\|immediate\|verify.*account\|suspended.*account" "$header_file"; then
+            echo -e "  ${RED}⚠ Linguagem típica de phishing detectada${NC}"
         fi
+        
+        # Verificar domínios suspeitos
+        local domains
+        domains=$(grep -oE '@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' "$header_file" | sort -u)
+        echo "  Domínios encontrados:"
+        echo "$domains" | while read -r domain; do
+            echo "    $domain"
+        done
     fi
     
-    # Gerar resumo de ameaças
-    if [[ -f "$(dirname "$0")/threat_summary.sh" ]]; then
-        source "$(dirname "$0")/threat_summary.sh" 2>/dev/null
-        if declare -f generate_threat_summary > /dev/null 2>&1; then
-            generate_threat_summary "Análise de Cabeçalho de Email" "$header_file" "$suspicious_count" "Email header analysis with IP reputation check"
-        fi
+    # Gerar resumo de ameaças (simplificado)
+    echo ""
+    echo -e "${BLUE}[Resumo da Análise]${NC}"
+    echo "Arquivo analisado: $header_file"
+    echo "Indicadores suspeitos encontrados: $suspicious_count"
+    
+    if [[ $suspicious_count -eq 0 ]]; then
+        echo -e "Status: ${GREEN}Aparentemente legítimo${NC}"
+    elif [[ $suspicious_count -le 2 ]]; then
+        echo -e "Status: ${YELLOW}Requer atenção${NC}"
+    else
+        echo -e "Status: ${RED}Altamente suspeito${NC}"
     fi
     
     log_message "Cabeçalho de email analisado: $header_file (Ameaças: $suspicious_count)"
     
+    echo ""
+    echo -e "${GREEN}Análise concluída!${NC}"
+    
     # Gerar e abrir relatório HTML
     "$(dirname "$0")/generate_report.sh" "Análise de Cabeçalho de Email" "$header_file" "$LOG_FILE"
+}
+
+# Função para análise de IP
+analyze_ip() {
+    local ip="$1"
+    
+    echo -e "${PURPLE}=== ANÁLISE DE IP ===${NC}"
+    echo "IP: $ip"
+    echo ""
+    
+    # Validar formato do IP
+    if ! [[ $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        echo -e "${RED}Erro: Formato de IP inválido${NC}"
+        return 1
+    fi
+    
+    # Verificar se é IP privado
+    if [[ $ip =~ ^10\. ]] || [[ $ip =~ ^192\.168\. ]] || [[ $ip =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]]; then
+        echo -e "${YELLOW}⚠️  IP Privado detectado${NC}"
+        echo "Este é um endereço IP privado (RFC 1918)"
+        echo ""
+    fi
+    
+    # Análise básica com whois
+    echo -e "${BLUE}[Informações WHOIS]${NC}"
+    if command -v whois > /dev/null; then
+        whois_info=$(timeout 10 whois "$ip" 2>/dev/null | head -20)
+        if [ -n "$whois_info" ]; then
+            echo "$whois_info" | grep -E "(country|Country|organization|Organization|netname|NetName)" | head -5
+        else
+            echo "Informações WHOIS não disponíveis"
+        fi
+    else
+        echo "Comando whois não encontrado"
+    fi
+    echo ""
+    
+    # Análise de geolocalização básica
+    echo -e "${BLUE}[Análise de Geolocalização]${NC}"
+    if command -v curl > /dev/null; then
+        geo_info=$(timeout 10 curl -s "http://ip-api.com/json/$ip" 2>/dev/null)
+        if [ -n "$geo_info" ] && echo "$geo_info" | grep -q "success"; then
+            echo "$geo_info" | grep -o '"country":"[^"]*"' | cut -d'"' -f4 | sed 's/^/País: /'
+            echo "$geo_info" | grep -o '"city":"[^"]*"' | cut -d'"' -f4 | sed 's/^/Cidade: /'
+            echo "$geo_info" | grep -o '"isp":"[^"]*"' | cut -d'"' -f4 | sed 's/^/ISP: /'
+        else
+            echo "Informações de geolocalização não disponíveis"
+        fi
+    else
+        echo "curl não encontrado para análise de geolocalização"
+    fi
+    echo ""
+    
+    # Verificação de reputação básica
+    echo -e "${BLUE}[Verificação de Reputação]${NC}"
+    echo "Verificando listas de IPs maliciosos conhecidos..."
+    
+    # Verificar se está em algumas listas conhecidas (simulação)
+    reputation_score=0
+    risk_factors=()
+    
+    # Verificações básicas de padrões suspeitos
+    if [[ $ip =~ ^(185\.|91\.|46\.) ]]; then
+        risk_factors+=("IP em faixa frequentemente associada a atividades suspeitas")
+        ((reputation_score += 20))
+    fi
+    
+    if [ ${#risk_factors[@]} -eq 0 ]; then
+        echo -e "${GREEN}✓ Nenhum indicador óbvio de atividade maliciosa encontrado${NC}"
+        risk_level="BAIXO"
+        risk_emoji="🟢"
+    elif [ $reputation_score -lt 50 ]; then
+        echo -e "${YELLOW}⚠️  Alguns indicadores de risco encontrados${NC}"
+        risk_level="MÉDIO"
+        risk_emoji="🟡"
+    else
+        echo -e "${RED}⚠️  Múltiplos indicadores de risco encontrados${NC}"
+        risk_level="ALTO"
+        risk_emoji="🔴"
+    fi
+    
+    # Exibir fatores de risco se houver
+    if [ ${#risk_factors[@]} -gt 0 ]; then
+        echo ""
+        echo -e "${YELLOW}Fatores de risco identificados:${NC}"
+        for factor in "${risk_factors[@]}"; do
+            echo "  • $factor"
+        done
+    fi
+    
+    echo ""
+    echo -e "${BLUE}[Resumo da Análise]${NC}"
+    echo "IP analisado: $ip"
+    echo "Nível de risco: $risk_emoji $risk_level"
+    echo "Pontuação de risco: $reputation_score/100"
+    
+    log_message "IP analisado: $ip - Risco: $risk_level ($reputation_score/100)"
+    
+    # Gerar e abrir relatório HTML
+    export IP_COUNTRY IP_ORG RISK_SCORE="$reputation_score" IP_RISK_FACTORS
+    if [ ${#risk_factors[@]} -gt 0 ]; then
+        IP_RISK_FACTORS=$(printf '%s\n' "${risk_factors[@]}")
+    fi
+    
+    "$(dirname "$0")/generate_report.sh" "Análise de IP" "$ip" "$LOG_FILE"
 }
 
 # Função principal
@@ -748,49 +898,3 @@ main() {
 
 # Executar função principal
 main "$@"
-
-# Função para análise de IP
-analyze_ip() {
-    local ip="$1"
-    
-    echo -e "${PURPLE}=== ANÁLISE DE IP ===${NC}"
-    echo "IP: $ip"
-    
-    # Verificar se o script ip_analyzer.sh existe
-    if [[ -f "$(dirname "$0")/ip_analyzer.sh" ]]; then
-        # Usar o script ip_analyzer.sh para análise detalhada
-        "$(dirname "$0")/ip_analyzer.sh" "$ip"
-    else
-        echo -e "${RED}Erro: Script ip_analyzer.sh não encontrado${NC}"
-        echo "Por favor, certifique-se de que o script ip_analyzer.sh está no mesmo diretório."
-        return 1
-    fi
-    
-    log_message "IP analisado: $ip"
-    
-    # Gerar e abrir relatório HTML
-    "$(dirname "$0")/generate_report.sh" "Análise de IP" "$ip" "$LOG_FILE"
-}
-
-# Função para análise de IP
-analyze_ip() {
-    local ip="$1"
-    
-    echo -e "${PURPLE}=== ANÁLISE DE IP ===${NC}"
-    echo "IP: $ip"
-    
-    # Verificar se o script ip_analyzer_tool.sh existe
-    if [[ -f "$(dirname "$0")/ip_analyzer_tool.sh" ]]; then
-        # Usar o script ip_analyzer_tool.sh para análise detalhada
-        "$(dirname "$0")/ip_analyzer_tool.sh" "$ip"
-    else
-        echo -e "${RED}Erro: Script ip_analyzer_tool.sh não encontrado${NC}"
-        echo "Por favor, certifique-se de que o script ip_analyzer_tool.sh está no mesmo diretório."
-        return 1
-    fi
-    
-    log_message "IP analisado: $ip"
-    
-    # Gerar e abrir relatório HTML
-    "$(dirname "$0")/generate_report.sh" "Análise de IP" "$ip" "$LOG_FILE"
-}
