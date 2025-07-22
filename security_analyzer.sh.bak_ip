@@ -1,0 +1,732 @@
+#!/bin/bash
+
+# ========================================
+# Security Analyzer Tool - Ferramenta Avançada de Análise de Segurança
+# Desenvolvido para análise de arquivos, URLs, emails, domínios e hashes
+# ========================================
+
+# Cores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Configurações
+CONFIG_DIR="$HOME/.security_analyzer"
+LOG_FILE="$CONFIG_DIR/analysis.log"
+CACHE_DIR="$CONFIG_DIR/cache"
+API_KEYS_FILE="$CONFIG_DIR/api_keys.conf"
+
+# Criar diretórios necessários
+mkdir -p "$CONFIG_DIR" "$CACHE_DIR"
+
+# Função para logging
+log_message() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+}
+
+# Função para exibir banner
+show_banner() {
+    echo -e "${CYAN}"
+    cat << "EOF"
+╔═══════════════════════════════════════════════════════════════╗
+║                    SECURITY ANALYZER TOOL                    ║
+║              Ferramenta Avançada de Análise de Segurança     ║
+║                                                               ║
+║  Análise de: Arquivos | URLs | Emails | Domínios | Hashes    ║
+╚═══════════════════════════════════════════════════════════════╝
+EOF
+    echo -e "${NC}"
+}
+
+# Função para exibir ajuda
+show_help() {
+    echo -e "${YELLOW}USO:${NC}"
+    echo "  $0 [OPÇÃO] [ALVO]"
+    echo ""
+    echo -e "${YELLOW}OPÇÕES:${NC}"
+    echo "  -f, --file      Analisar arquivo"
+    echo "  -u, --url       Analisar URL"
+    echo "  -e, --email     Analisar email"
+    echo "  -d, --domain    Analisar domínio"
+    echo "  -h, --hash      Analisar hash"
+    echo "  --header        Analisar cabeçalho de email"
+    echo "  --config        Configurar chaves de API"
+    echo "  --help          Exibir esta ajuda"
+    echo ""
+    echo -e "${YELLOW}EXEMPLOS:${NC}"
+    echo "  $0 -f /path/to/suspicious_file.exe"
+    echo "  $0 -u https://suspicious-site.com"
+    echo "  $0 -d malicious-domain.com"
+    echo "  $0 -h 5d41402abc4b2a76b9719d911017c592"
+    echo ""
+}
+
+# Função para configurar chaves de API
+configure_api_keys() {
+    echo -e "${YELLOW}Configuração de Chaves de API${NC}"
+    echo "Configure suas chaves de API para melhor funcionalidade:"
+    echo ""
+    
+    # VirusTotal
+    echo -n "VirusTotal API Key (opcional): "
+    read -r vt_key
+    
+    # Shodan
+    echo -n "Shodan API Key (opcional): "
+    read -r shodan_key
+    
+    # URLScan.io
+    echo -n "URLScan.io API Key (opcional): "
+    read -r urlscan_key
+    
+    # Hybrid Analysis
+    echo -n "Hybrid Analysis API Key (opcional): "
+    read -r hybrid_key
+    
+    # Salvar configurações
+    cat > "$API_KEYS_FILE" << EOF
+# Chaves de API - Security Analyzer Tool
+VIRUSTOTAL_API_KEY="$vt_key"
+SHODAN_API_KEY="$shodan_key"
+URLSCAN_API_KEY="$urlscan_key"
+HYBRID_ANALYSIS_API_KEY="$hybrid_key"
+EOF
+    
+    chmod 600 "$API_KEYS_FILE"
+    echo -e "${GREEN}Configurações salvas em: $API_KEYS_FILE${NC}"
+}
+
+# Carregar chaves de API
+load_api_keys() {
+    if [[ -f "$API_KEYS_FILE" ]]; then
+        source "$API_KEYS_FILE"
+    fi
+}
+
+# Função para verificar dependências
+check_dependencies() {
+    local deps=("curl" "jq" "dig" "whois" "file" "sha256sum" "md5sum")
+    local missing=()
+    
+    for dep in "${deps[@]}"; do
+        if ! command -v "$dep" &> /dev/null; then
+            missing+=("$dep")
+        fi
+    done
+    
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo -e "${RED}Dependências faltando: ${missing[*]}${NC}"
+        echo "Instale com: sudo apt-get install ${missing[*]}"
+        exit 1
+    fi
+}
+
+# Função para análise de hash via VirusTotal
+analyze_hash_virustotal() {
+    local hash="$1"
+    
+    if [[ -z "$VIRUSTOTAL_API_KEY" ]]; then
+        echo -e "${YELLOW}[VirusTotal] API Key não configurada${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}[VirusTotal] Analisando hash: $hash${NC}"
+    
+    local response
+    response=$(curl -s -H "x-apikey: $VIRUSTOTAL_API_KEY" \
+        "https://www.virustotal.com/api/v3/files/$hash")
+    
+    if echo "$response" | jq -e '.data' > /dev/null 2>&1; then
+        local malicious
+        local suspicious
+        malicious=$(echo "$response" | jq -r '.data.attributes.last_analysis_stats.malicious // 0')
+        suspicious=$(echo "$response" | jq -r '.data.attributes.last_analysis_stats.suspicious // 0')
+        
+        if [[ $malicious -gt 0 || $suspicious -gt 0 ]]; then
+            echo -e "${RED}[VirusTotal] AMEAÇA DETECTADA!${NC}"
+            echo "  Malicioso: $malicious detecções"
+            echo "  Suspeito: $suspicious detecções"
+            return 0
+        else
+            echo -e "${GREEN}[VirusTotal] Hash limpo${NC}"
+        fi
+    else
+        echo -e "${YELLOW}[VirusTotal] Hash não encontrado na base${NC}"
+    fi
+}
+
+# Função para análise de URL via URLScan.io
+analyze_url_urlscan() {
+    local url="$1"
+    
+    echo -e "${BLUE}[URLScan.io] Analisando URL: $url${NC}"
+    
+    # Submeter URL para análise
+    local submit_response
+    local headers=(-H "Content-Type: application/json")
+    
+    if [[ -n "$URLSCAN_API_KEY" ]]; then
+        headers+=(-H "API-Key: $URLSCAN_API_KEY")
+    fi
+    
+    submit_response=$(curl -s "${headers[@]}" -d "{\"url\":\"$url\"}" \
+        "https://urlscan.io/api/v1/scan/")
+    
+    if echo "$submit_response" | jq -e '.uuid' > /dev/null 2>&1; then
+        local uuid
+        uuid=$(echo "$submit_response" | jq -r '.uuid')
+        echo "  Análise iniciada. UUID: $uuid"
+        echo "  Aguarde alguns segundos para resultados..."
+        
+        # Aguardar análise
+        sleep 10
+        
+        # Obter resultados
+        local result_response
+        result_response=$(curl -s "https://urlscan.io/api/v1/result/$uuid/")
+        
+        if echo "$result_response" | jq -e '.verdicts' > /dev/null 2>&1; then
+            local overall_malicious
+            overall_malicious=$(echo "$result_response" | jq -r '.verdicts.overall.malicious // false')
+            
+            if [[ "$overall_malicious" == "true" ]]; then
+                echo -e "${RED}[URLScan.io] URL MALICIOSA DETECTADA!${NC}"
+                return 0
+            else
+                echo -e "${GREEN}[URLScan.io] URL aparenta ser segura${NC}"
+            fi
+        fi
+    else
+        echo -e "${YELLOW}[URLScan.io] Erro na submissão da URL${NC}"
+    fi
+}
+
+# Função para análise de domínio via Shodan
+analyze_domain_shodan() {
+    local domain="$1"
+    
+    if [[ -z "$SHODAN_API_KEY" ]]; then
+        echo -e "${YELLOW}[Shodan] API Key não configurada${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}[Shodan] Analisando domínio: $domain${NC}"
+    
+    local response
+    response=$(curl -s "https://api.shodan.io/shodan/host/search?key=$SHODAN_API_KEY&query=hostname:$domain")
+    
+    if echo "$response" | jq -e '.matches' > /dev/null 2>&1; then
+        local total
+        total=$(echo "$response" | jq -r '.total // 0')
+        
+        if [[ $total -gt 0 ]]; then
+            echo "  Encontrados $total hosts associados"
+            echo "$response" | jq -r '.matches[0:3][] | "  IP: \(.ip_str) | Porta: \(.port) | Serviço: \(.product // "N/A")"'
+        else
+            echo -e "${GREEN}[Shodan] Nenhum host encontrado${NC}"
+        fi
+    fi
+}
+
+# Função para análise básica de domínio (DNS/WHOIS)
+analyze_domain_basic() {
+    local domain="$1"
+    
+    echo -e "${BLUE}[DNS/WHOIS] Analisando domínio: $domain${NC}"
+    
+    # Verificar resolução DNS
+    if dig +short "$domain" > /dev/null 2>&1; then
+        local ips
+        ips=$(dig +short "$domain" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$')
+        echo "  IPs resolvidos:"
+        echo "$ips" | while read -r ip; do
+            echo "    $ip"
+        done
+    else
+        echo -e "${RED}  Domínio não resolve${NC}"
+    fi
+    
+    # WHOIS básico
+    if command -v whois &> /dev/null; then
+        echo "  Informações WHOIS:"
+        whois "$domain" 2>/dev/null | grep -E "(Creation Date|Registry Expiry|Registrar:|Status:)" | head -5
+    fi
+}
+
+# Função para análise de arquivo
+analyze_file() {
+    local filepath="$1"
+    
+    if [[ ! -f "$filepath" ]]; then
+        echo -e "${RED}Arquivo não encontrado: $filepath${NC}"
+        return 1
+    fi
+    
+    echo -e "${PURPLE}=== ANÁLISE DE ARQUIVO ===${NC}"
+    echo "Arquivo: $filepath"
+    
+    # Informações básicas do arquivo
+    echo -e "\n${BLUE}[Informações Básicas]${NC}"
+    file "$filepath"
+    ls -lh "$filepath"
+    
+    # Calcular hashes
+    echo -e "\n${BLUE}[Hashes]${NC}"
+    local md5_hash sha256_hash
+    md5_hash=$(md5sum "$filepath" | cut -d' ' -f1)
+    sha256_hash=$(sha256sum "$filepath" | cut -d' ' -f1)
+    
+    echo "MD5:    $md5_hash"
+    echo "SHA256: $sha256_hash"
+    
+    # Analisar hashes
+    analyze_hash_virustotal "$sha256_hash"
+    analyze_hash_virustotal "$md5_hash"
+    
+    log_message "Arquivo analisado: $filepath (MD5: $md5_hash, SHA256: $sha256_hash)"
+    
+    # Gerar e abrir relatório HTML
+    "$(dirname "$0")/generate_report.sh" "Análise de Arquivo" "$filepath" "$LOG_FILE"
+}
+
+# Função para análise de URL
+analyze_url() {
+    local url="$1"
+    
+    echo -e "${PURPLE}=== ANÁLISE DE URL ===${NC}"
+    echo "URL: $url"
+    
+    # Extrair domínio
+    local domain
+    domain=$(echo "$url" | sed -E 's|^https?://([^/]+).*|\1|')
+    
+    echo "Domínio extraído: $domain"
+    
+    # Análises
+    analyze_url_urlscan "$url"
+    analyze_domain_basic "$domain"
+    analyze_domain_shodan "$domain"
+    
+    log_message "URL analisada: $url"
+    
+    # Gerar e abrir relatório HTML
+    "$(dirname "$0")/generate_report.sh" "Análise de URL" "$url" "$LOG_FILE"
+}
+
+# Função para análise de domínio
+analyze_domain() {
+    local domain="$1"
+    
+    echo -e "${PURPLE}=== ANÁLISE DE DOMÍNIO ===${NC}"
+    echo "Domínio: $domain"
+    
+    analyze_domain_basic "$domain"
+    analyze_domain_shodan "$domain"
+    
+    log_message "Domínio analisado: $domain"
+    
+    # Gerar e abrir relatório HTML
+    "$(dirname "$0")/generate_report.sh" "Análise de Domínio" "$domain" "$LOG_FILE"
+}
+
+# Função para análise de hash
+analyze_hash() {
+    local hash="$1"
+    
+    echo -e "${PURPLE}=== ANÁLISE DE HASH ===${NC}"
+    echo "Hash: $hash"
+    
+    # Detectar tipo de hash
+    local hash_type
+    case ${#hash} in
+        32) hash_type="MD5" ;;
+        40) hash_type="SHA1" ;;
+        64) hash_type="SHA256" ;;
+        *) hash_type="Desconhecido" ;;
+    esac
+    
+    echo "Tipo detectado: $hash_type"
+    
+    analyze_hash_virustotal "$hash"
+    
+    log_message "Hash analisado: $hash ($hash_type)"
+    
+    # Gerar e abrir relatório HTML
+    "$(dirname "$0")/generate_report.sh" "Análise de Hash" "$hash" "$LOG_FILE"
+}
+
+# Função para análise de email
+analyze_email() {
+    local email="$1"
+    
+    echo -e "${PURPLE}=== ANÁLISE DE EMAIL ===${NC}"
+    echo "Email: $email"
+    
+    # Extrair domínio do email
+    local domain
+    domain=$(echo "$email" | cut -d'@' -f2)
+    
+    echo "Domínio do email: $domain"
+    
+    analyze_domain_basic "$domain"
+    
+    log_message "Email analisado: $email"
+    
+    # Gerar e abrir relatório HTML
+    "$(dirname "$0")/generate_report.sh" "Análise de Email" "$email" "$LOG_FILE"
+}
+
+# Função para análise de cabeçalho de email
+analyze_email_header() {
+    local header_file="$1"
+    
+    # Verificar se o arquivo existe
+    if [[ ! -f "$header_file" ]]; then
+        echo -e "${RED}Erro: Arquivo não encontrado: $header_file${NC}"
+        echo -e "${YELLOW}Verifique se o caminho está correto e se o arquivo existe.${NC}"
+        return 1
+    fi
+    
+    # Verificar se o arquivo não está vazio
+    if [[ ! -s "$header_file" ]]; then
+        echo -e "${RED}Erro: Arquivo está vazio: $header_file${NC}"
+        return 1
+    fi
+    
+    # Verificar se o arquivo é legível
+    if [[ ! -r "$header_file" ]]; then
+        echo -e "${RED}Erro: Sem permissão para ler o arquivo: $header_file${NC}"
+        echo -e "${YELLOW}Execute: chmod +r \"$header_file\"${NC}"
+        return 1
+    fi
+    
+    echo -e "${PURPLE}=== ANÁLISE DE CABEÇALHO DE EMAIL ===${NC}"
+    echo "Arquivo: $header_file"
+    echo "Tamanho: $(wc -c < "$header_file") bytes"
+    echo "Linhas: $(wc -l < "$header_file")"
+    echo ""
+    
+    # Verificar se parece ser um cabeçalho de email válido
+    if ! grep -qi "^From:\|^To:\|^Subject:\|^Received:\|^Message-ID:" "$header_file"; then
+        echo -e "${YELLOW}Aviso: O arquivo não parece conter cabeçalhos de email válidos.${NC}"
+        echo -e "${YELLOW}Continuando com a análise...${NC}"
+        echo ""
+    fi
+    
+    # Extrair informações importantes
+    echo -e "${BLUE}[Informações Básicas do Email]${NC}"
+    
+    # From
+    local from_header
+    from_header=$(grep -i "^From:" "$header_file" | head -1)
+    if [[ -n "$from_header" ]]; then
+        echo "From: $(echo "$from_header" | cut -d' ' -f2-)"
+    else
+        echo "From: não encontrado"
+    fi
+    
+    # To
+    local to_header
+    to_header=$(grep -i "^To:" "$header_file" | head -1)
+    if [[ -n "$to_header" ]]; then
+        echo "To: $(echo "$to_header" | cut -d' ' -f2-)"
+    else
+        echo "To: não encontrado"
+    fi
+    
+    # Subject
+    local subject_header
+    subject_header=$(grep -i "^Subject:" "$header_file" | head -1)
+    if [[ -n "$subject_header" ]]; then
+        echo "Subject: $(echo "$subject_header" | cut -d' ' -f2-)"
+    else
+        echo "Subject: não encontrado"
+    fi
+    
+    # Date
+    local date_header
+    date_header=$(grep -i "^Date:" "$header_file" | head -1)
+    if [[ -n "$date_header" ]]; then
+        echo "Date: $(echo "$date_header" | cut -d' ' -f2-)"
+    else
+        echo "Date: não encontrado"
+    fi
+    
+    # Message-ID
+    local msgid_header
+    msgid_header=$(grep -i "^Message-ID:" "$header_file" | head -1)
+    if [[ -n "$msgid_header" ]]; then
+        echo "Message-ID: $(echo "$msgid_header" | cut -d' ' -f2-)"
+    else
+        echo "Message-ID: não encontrado"
+    fi
+    
+    echo ""
+    echo -e "${BLUE}[Caminho do Email - Servidores Received]${NC}"
+    local received_count
+    received_count=$(grep -c "^Received:" "$header_file")
+    
+    if [[ $received_count -gt 0 ]]; then
+        echo "Total de hops: $received_count"
+        grep -i "^Received:" "$header_file" | nl -v0 | while read -r num line; do
+            echo "  [$num] $(echo "$line" | cut -c1-80)..."
+        done
+    else
+        echo "Nenhum cabeçalho Received encontrado"
+    fi
+    
+    echo ""
+    echo -e "${BLUE}[Autenticação de Email]${NC}"
+    
+    # SPF
+    if grep -qi "Received-SPF:" "$header_file"; then
+        local spf_result
+        spf_result=$(grep -i "Received-SPF:" "$header_file" | head -1 | awk '{print $2}')
+        case "$spf_result" in
+            "pass") echo -e "  SPF: ${GREEN}PASS${NC}" ;;
+            "fail") echo -e "  SPF: ${RED}FAIL${NC}" ;;
+            "softfail") echo -e "  SPF: ${YELLOW}SOFTFAIL${NC}" ;;
+            *) echo -e "  SPF: ${YELLOW}$spf_result${NC}" ;;
+        esac
+    else
+        echo -e "  SPF: ${YELLOW}Não encontrado${NC}"
+    fi
+    
+    # DKIM
+    if grep -qi "DKIM-Signature:" "$header_file"; then
+        echo -e "  DKIM: ${GREEN}Presente${NC}"
+        local dkim_domain
+        dkim_domain=$(grep -i "DKIM-Signature:" "$header_file" | grep -o "d=[^;]*" | cut -d'=' -f2 | head -1)
+        if [[ -n "$dkim_domain" ]]; then
+            echo "    Domínio DKIM: $dkim_domain"
+        fi
+    else
+        echo -e "  DKIM: ${RED}Ausente${NC}"
+    fi
+    
+    # DMARC
+    if grep -qi "dmarc=" "$header_file"; then
+        if grep -qi "dmarc=pass" "$header_file"; then
+            echo -e "  DMARC: ${GREEN}PASS${NC}"
+        elif grep -qi "dmarc=fail" "$header_file"; then
+            echo -e "  DMARC: ${RED}FAIL${NC}"
+        else
+            echo -e "  DMARC: ${YELLOW}Verificação inconclusiva${NC}"
+        fi
+    else
+        echo -e "  DMARC: ${YELLOW}Não encontrado${NC}"
+    fi
+    
+    echo ""
+    echo -e "${BLUE}[IPs Extraídos dos Cabeçalhos]${NC}"
+    local ips_found
+    ips_found=$(grep -oE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' "$header_file" | sort -u)
+    
+    if [[ -n "$ips_found" ]]; then
+        # Carregar verificador avançado de IPs se disponível
+        if [[ -f "$(dirname "$0")/ip_reputation_checker.sh" ]]; then
+            source "$(dirname "$0")/ip_reputation_checker.sh"
+        fi
+        
+        local public_ips=()
+        local threats_detected=0
+        
+        echo "$ips_found" | while read -r ip; do
+            # Filtrar IPs privados
+            if [[ ! "$ip" =~ ^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|127\.) ]]; then
+                echo -e "  ${GREEN}IP público encontrado:${NC} $ip"
+                public_ips+=("$ip")
+                
+                # Verificação avançada de reputação
+                if declare -f check_ip_reputation > /dev/null 2>&1; then
+                    echo "    Verificando reputação..."
+                    if ! check_ip_reputation "$ip"; then
+                        ((threats_detected++))
+                        echo -e "    ${RED}⚠ IP MALICIOSO DETECTADO!${NC}"
+                    fi
+                else
+                    # Verificação básica com Shodan se API key disponível
+                    if [[ -n "$SHODAN_API_KEY" ]]; then
+                        local shodan_response
+                        shodan_response=$(curl -s "https://api.shodan.io/shodan/host/$ip?key=$SHODAN_API_KEY" 2>/dev/null)
+                        
+                        if echo "$shodan_response" | jq -e '.country_name' > /dev/null 2>&1; then
+                            local country org
+                            country=$(echo "$shodan_response" | jq -r '.country_name // "N/A"')
+                            org=$(echo "$shodan_response" | jq -r '.org // "N/A"')
+                            echo "    País: $country | Organização: $org"
+                        fi
+                    fi
+                    
+                    # Verificação básica de padrões maliciosos
+                    if [[ "$ip" =~ ^184\.107\.85\. ]]; then
+                        echo -e "    ${RED}⚠ IP em range conhecido por atividade maliciosa (184.107.85.x)${NC}"
+                        ((threats_detected++))
+                    elif [[ "$ip" =~ ^185\.220\. ]]; then
+                        echo -e "    ${YELLOW}⚠ Possível Tor exit node${NC}"
+                        ((suspicious_count++))
+                    fi
+                fi
+                
+                echo ""
+            else
+                echo -e "  ${YELLOW}IP privado:${NC} $ip"
+            fi
+        done
+        
+        # Atualizar contador de suspeitas se IPs maliciosos foram encontrados
+        if [[ $threats_detected -gt 0 ]]; then
+            suspicious_count=$((suspicious_count + threats_detected))
+        fi
+    else
+        echo "  Nenhum IP encontrado nos cabeçalhos"
+    fi
+    
+    echo ""
+    echo -e "${BLUE}[Indicadores de Suspeita]${NC}"
+    local suspicious_count=0
+    
+    # Verificar X-Mailer suspeito
+    if grep -qi "X-Mailer.*mass\|X-Mailer.*bulk" "$header_file"; then
+        echo -e "  ${RED}⚠ Possível email em massa detectado${NC}"
+        ((suspicious_count++))
+    fi
+    
+    # Verificar discrepâncias no From vs Return-Path
+    local from_domain return_domain
+    from_domain=$(grep -i "^From:" "$header_file" | head -1 | grep -o "@[^>]*" | tr -d '@>' | head -1)
+    return_domain=$(grep -i "^Return-Path:" "$header_file" | head -1 | grep -o "@[^>]*" | tr -d '@>' | head -1)
+    
+    if [[ -n "$from_domain" && -n "$return_domain" && "$from_domain" != "$return_domain" ]]; then
+        echo -e "  ${YELLOW}⚠ Return-Path difere do From${NC}"
+        echo "    From: $from_domain | Return-Path: $return_domain"
+        ((suspicious_count++))
+    fi
+    
+    # Verificar muitos hops
+    if [[ $received_count -gt 8 ]]; then
+        echo -e "  ${YELLOW}⚠ Muitos hops de email ($received_count)${NC}"
+        ((suspicious_count++))
+    fi
+    
+    if [[ $suspicious_count -eq 0 ]]; then
+        echo -e "  ${GREEN}Nenhum indicador óbvio de suspeita encontrado${NC}"
+    else
+        echo -e "  ${RED}Total de indicadores suspeitos: $suspicious_count${NC}"
+    fi
+    
+    # Tentar usar a função avançada do email_analyzer.sh se disponível
+    if [[ -f "$(dirname "$0")/email_analyzer.sh" ]]; then
+        echo ""
+        echo -e "${BLUE}[Análise Avançada]${NC}"
+        source "$(dirname "$0")/email_analyzer.sh" 2>/dev/null
+        if declare -f analyze_email_header_complete > /dev/null 2>&1; then
+            echo "Executando análise avançada..."
+            analyze_email_header_complete "$header_file"
+        fi
+    fi
+    
+    # Executar análise forense detalhada
+    if [[ -f "$(dirname "$0")/forensic_email_analyzer_part3.sh" ]]; then
+        echo ""
+        source "$(dirname "$0")/forensic_email_analyzer_part3.sh" 2>/dev/null
+        source "$(dirname "$0")/forensic_email_analyzer_part2.sh" 2>/dev/null
+        source "$(dirname "$0")/forensic_email_analyzer.sh" 2>/dev/null
+        
+        if declare -f complete_forensic_analysis > /dev/null 2>&1; then
+            echo -e "${CYAN}[Iniciando Análise Forense Detalhada]${NC}"
+            echo ""
+            complete_forensic_analysis "$header_file"
+        fi
+    fi
+    
+    # Gerar resumo de ameaças
+    if [[ -f "$(dirname "$0")/threat_summary.sh" ]]; then
+        source "$(dirname "$0")/threat_summary.sh" 2>/dev/null
+        if declare -f generate_threat_summary > /dev/null 2>&1; then
+            generate_threat_summary "Análise de Cabeçalho de Email" "$header_file" "$suspicious_count" "Email header analysis with IP reputation check"
+        fi
+    fi
+    
+    log_message "Cabeçalho de email analisado: $header_file (Ameaças: $suspicious_count)"
+    
+    # Gerar e abrir relatório HTML
+    "$(dirname "$0")/generate_report.sh" "Análise de Cabeçalho de Email" "$header_file" "$LOG_FILE"
+}
+
+# Função principal
+main() {
+    show_banner
+    check_dependencies
+    load_api_keys
+    
+    if [[ $# -eq 0 ]]; then
+        show_help
+        exit 0
+    fi
+    
+    case "$1" in
+        -f|--file)
+            if [[ -z "$2" ]]; then
+                echo -e "${RED}Erro: Especifique o arquivo para análise${NC}"
+                exit 1
+            fi
+            analyze_file "$2"
+            ;;
+        -u|--url)
+            if [[ -z "$2" ]]; then
+                echo -e "${RED}Erro: Especifique a URL para análise${NC}"
+                exit 1
+            fi
+            analyze_url "$2"
+            ;;
+        -d|--domain)
+            if [[ -z "$2" ]]; then
+                echo -e "${RED}Erro: Especifique o domínio para análise${NC}"
+                exit 1
+            fi
+            analyze_domain "$2"
+            ;;
+        -h|--hash)
+            if [[ -z "$2" ]]; then
+                echo -e "${RED}Erro: Especifique o hash para análise${NC}"
+                exit 1
+            fi
+            analyze_hash "$2"
+            ;;
+        -e|--email)
+            if [[ -z "$2" ]]; then
+                echo -e "${RED}Erro: Especifique o email para análise${NC}"
+                exit 1
+            fi
+            analyze_email "$2"
+            ;;
+        --header)
+            if [[ -z "$2" ]]; then
+                echo -e "${RED}Erro: Especifique o arquivo de cabeçalho para análise${NC}"
+                exit 1
+            fi
+            analyze_email_header "$2"
+            ;;
+        --config)
+            configure_api_keys
+            ;;
+        --help)
+            show_help
+            ;;
+        *)
+            echo -e "${RED}Opção inválida: $1${NC}"
+            show_help
+            exit 1
+            ;;
+    esac
+    
+    echo -e "\n${GREEN}Análise concluída. Log salvo em: $LOG_FILE${NC}"
+}
+
+# Executar função principal
+main "$@"

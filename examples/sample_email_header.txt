@@ -1,0 +1,29 @@
+Return-Path: <noreply@suspicious-bank.com>
+Delivered-To: victim@example.com
+Received: from mail.suspicious-bank.com (mail.suspicious-bank.com [192.168.1.100])
+	by mx.example.com (Postfix) with ESMTP id 12345
+	for <victim@example.com>; Mon, 18 Jul 2025 16:00:00 +0000 (UTC)
+Received: from [10.0.0.50] (unknown [203.0.113.42])
+	by mail.suspicious-bank.com (Postfix) with ESMTP id 67890
+	Mon, 18 Jul 2025 15:59:58 +0000 (UTC)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=suspicious-bank.com;
+	s=default; t=1721318398;
+	h=from:to:subject:date:message-id;
+	bh=abc123def456ghi789jkl012mno345pqr678stu901vwx234yz=;
+	b=xyz789abc123def456ghi789jkl012mno345pqr678stu901vwx234yz=
+Received-SPF: fail (example.com: domain of noreply@suspicious-bank.com does not designate 203.0.113.42 as permitted sender) client-ip=203.0.113.42;
+Authentication-Results: mx.example.com;
+	spf=fail smtp.mailfrom=noreply@suspicious-bank.com;
+	dkim=pass header.d=suspicious-bank.com;
+	dmarc=fail (p=none dis=none) header.from=legitimate-bank.com
+Message-ID: <20250718160000.12345@suspicious-bank.com>
+Date: Mon, 18 Jul 2025 16:00:00 +0000
+From: "Legitimate Bank Security" <noreply@suspicious-bank.com>
+To: victim@example.com
+Subject: Urgent: Your Account Has Been Compromised - Immediate Action Required
+X-Mailer: PHP Mailer 6.0 (Mass Mailing Edition)
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+
+[Este é um exemplo de cabeçalho de email suspeito para demonstração]
