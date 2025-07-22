@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# Script de correção final dos problemas identificados
+
+echo "🔧 Corrigindo problemas finais do Security Tools..."
+
+# 1. Corrigir problema do menu - criar versão simplificada
+echo "📝 Criando versão corrigida do menu..."
+
+cat > menu_fixed.sh << 'EOF'
+#!/bin/bash
+
 # Menu principal do Security Tools - Versão corrigida
 
 # Cores
@@ -247,3 +257,43 @@ fi
 
 # Executar menu principal
 main_menu
+EOF
+
+chmod +x menu_fixed.sh
+
+# 2. Substituir o menu original
+echo "🔄 Substituindo menu original..."
+mv menu.sh menu.sh.backup
+mv menu_fixed.sh menu.sh
+
+echo ""
+echo "✅ Correções aplicadas com sucesso!"
+echo ""
+echo "🧪 Testando funcionalidades:"
+
+# Testar sintaxe
+echo -n "  • Sintaxe do menu: "
+if bash -n menu.sh; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${RED}ERRO${NC}"
+fi
+
+echo -n "  • Sintaxe do security_analyzer: "
+if bash -n security_analyzer.sh; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${RED}ERRO${NC}"
+fi
+
+echo -n "  • Sintaxe do generate_report: "
+if bash -n generate_report.sh; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${RED}ERRO${NC}"
+fi
+
+echo ""
+echo "🚀 Para testar:"
+echo "  ./menu.sh - Menu interativo"
+echo "  ./security_analyzer.sh --ip 8.8.8.8 - Teste direto"

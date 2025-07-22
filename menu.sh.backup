@@ -1,0 +1,369 @@
+#!/bin/bash
+
+# ========================================
+# Menu Interativo - Security Analyzer Tool
+# ========================================
+
+# Configurações básicas
+SCRIPT_DIR="$(dirname "$0")"
+
+# Função para exibir o menu principal
+show_main_menu() {
+    clear
+    echo -e "${CYAN}"
+    cat << "EOF"
+╔══════════════════════════════════════════════════════════════════════════════╗
+║   ███████╗███████╗ ██████╗██╗   ██╗██████╗ ██╗████████╗██╗   ██╗            ║
+║   ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝            ║
+║   ███████╗█████╗  ██║     ██║   ██║██████╔╝██║   ██║    ╚████╔╝             ║
+║   ╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██║   ██║     ╚██╔╝              ║
+║   ███████║███████╗╚██████╗╚██████╔╝██║  ██║██║   ██║      ██║               ║
+║   ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝               ║
+║                                                                              ║
+║   ████████╗ ██████╗  ██████╗ ██╗                                            ║
+║   ╚══██╔══╝██╔═══██╗██╔═══██╗██║                                            ║
+║      ██║   ██║   ██║██║   ██║██║                                            ║
+║      ██║   ██║   ██║██║   ██║██║                                            ║
+║      ██║   ╚██████╔╝╚██████╔╝███████╗                                       ║
+║      ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝                                       ║
+║                                                                              ║
+║                    🛡️  FERRAMENTA AVANÇADA DE SEGURANÇA  🛡️                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+EOF
+    echo -e "${NC}"
+    
+    echo -e "${PURPLE}                           @cybersecwonderwoman${NC}"
+    echo ""
+    echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║                              MENU PRINCIPAL                                 ║${NC}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    echo -e "${GREEN}  [1] 📁 Analisar Arquivo${NC}          - Verificar arquivos suspeitos"
+    echo -e "${GREEN}  [2] 🌐 Analisar URL${NC}             - Verificar links maliciosos"
+    echo -e "${GREEN}  [3] 🏠 Analisar Domínio${NC}         - Investigar domínios suspeitos"
+    echo -e "${GREEN}  [4] 🔢 Analisar Hash${NC}            - Consultar hashes em bases de dados"
+    echo -e "${GREEN}  [5] 📧 Analisar Email${NC}           - Verificar endereços de email"
+    echo -e "${GREEN}  [6] 📋 Analisar Cabeçalho${NC}       - Analisar headers de email"
+    echo -e "${GREEN}  [7] 🌐 Analisar IP${NC}             - Verificar endereços IP suspeitos"
+    echo ""
+    echo -e "${BLUE}  [8] ⚙️  Configurar APIs${NC}          - Configurar chaves de acesso"
+    echo -e "${BLUE}  [9] 📊 Ver Estatísticas${NC}         - Relatórios de uso"
+    echo -e "${BLUE}  [10] 📝 Ver Logs${NC}                 - Visualizar logs de análise"
+    echo -e "${BLUE}  [11] 🧪 Executar Testes${NC}         - Testar funcionalidades"
+    echo ""
+    echo -e "${CYAN}  [12] 📚 Ajuda${NC}                   - Manual de uso"
+    echo -e "${CYAN}  [13] ℹ️  Sobre${NC}                   - Informações da ferramenta"
+    echo ""
+    echo -e "${RED}  [0] 🚪 Sair${NC}                     - Encerrar programa"
+    echo ""
+    echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${YELLOW}║ Digite o número da opção desejada:                                          ║${NC}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
+    echo -n -e "${WHITE}➤ ${NC}"
+}
+
+# Função para análise de arquivo
+menu_analyze_file() {
+    echo -e "${BLUE}📁 ANÁLISE DE ARQUIVO${NC}"
+    echo "Digite o caminho completo do arquivo:"
+    echo -n "➤ "
+    read -r file_path
+    
+    if [[ -n "$file_path" ]]; then
+        echo -e "${YELLOW}Iniciando análise do arquivo: $file_path${NC}"
+        ./security_analyzer.sh -f "$file_path"
+    else
+        echo -e "${RED}Erro: Caminho do arquivo não informado${NC}"
+    fi
+    
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função para análise de URL
+menu_analyze_url() {
+    echo -e "${BLUE}🌐 ANÁLISE DE URL${NC}"
+    echo "Digite a URL para análise:"
+    echo -n "➤ "
+    read -r url
+    
+    if [[ -n "$url" ]]; then
+        echo -e "${YELLOW}Iniciando análise da URL: $url${NC}"
+        ./security_analyzer.sh -u "$url"
+    else
+        echo -e "${RED}Erro: URL não informada${NC}"
+    fi
+    
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função para análise de domínio
+menu_analyze_domain() {
+    echo -e "${BLUE}🏠 ANÁLISE DE DOMÍNIO${NC}"
+    echo "Digite o domínio para análise:"
+    echo -n "➤ "
+    read -r domain
+    
+    if [[ -n "$domain" ]]; then
+        echo -e "${YELLOW}Iniciando análise do domínio: $domain${NC}"
+        ./security_analyzer.sh -d "$domain"
+    else
+        echo -e "${RED}Erro: Domínio não informado${NC}"
+    fi
+    
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função para análise de hash
+menu_analyze_hash() {
+    echo -e "${BLUE}🔢 ANÁLISE DE HASH${NC}"
+    echo "Digite o hash para análise (MD5, SHA1, SHA256):"
+    echo -n "➤ "
+    read -r hash
+    
+    if [[ -n "$hash" ]]; then
+        echo -e "${YELLOW}Iniciando análise do hash: $hash${NC}"
+        ./security_analyzer.sh -h "$hash"
+    else
+        echo -e "${RED}Erro: Hash não informado${NC}"
+    fi
+    
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função para análise de email
+menu_analyze_email() {
+    echo -e "${BLUE}📧 ANÁLISE DE EMAIL${NC}"
+    echo "Digite o endereço de email para análise:"
+    echo -n "➤ "
+    read -r email
+    
+    if [[ -n "$email" ]]; then
+        echo -e "${YELLOW}Iniciando análise do email: $email${NC}"
+        ./security_analyzer.sh -e "$email"
+    else
+        echo -e "${RED}Erro: Email não informado${NC}"
+    fi
+    
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função para análise de cabeçalho
+menu_analyze_header() {
+    echo -e "${BLUE}📋 ANÁLISE DE CABEÇALHO DE EMAIL${NC}"
+    echo "Digite o caminho do arquivo com cabeçalhos de email:"
+    echo -n "➤ "
+    read -r header_file
+    
+    if [[ -n "$header_file" ]]; then
+        echo -e "${YELLOW}Iniciando análise do cabeçalho: $header_file${NC}"
+        ./security_analyzer.sh --header "$header_file"
+    else
+        echo -e "${RED}Erro: Arquivo de cabeçalho não informado${NC}"
+    fi
+    
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função para análise de IP
+menu_analyze_ip() {
+    clear
+    echo -e "${BLUE}🌐 ANÁLISE DE IP${NC}"
+    echo "Digite o endereço IP para análise:"
+    echo -n "➤ "
+    read -r ip_address
+    
+    if [[ -n "$ip_address" ]]; then
+        echo -e "${YELLOW}Iniciando análise do IP: $ip_address${NC}"
+        echo ""
+        
+        # Executar análise usando o security_analyzer.sh
+        if [[ -f "$(dirname "$0")/security_analyzer.sh" ]]; then
+            "$(dirname "$0")/security_analyzer.sh" --ip "$ip_address"
+        else
+            echo -e "${RED}Erro: Script security_analyzer.sh não encontrado${NC}"
+            echo "Por favor, certifique-se de que o script security_analyzer.sh está no mesmo diretório."
+        fi
+    else
+        echo -e "${RED}Erro: IP não informado${NC}"
+    fi
+    
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função para configurar APIs
+menu_configure_apis() {
+    echo -e "${BLUE}⚙️ CONFIGURAÇÃO DE APIs${NC}"
+    echo "Iniciando configuração das chaves de API..."
+    echo ""
+    ./security_analyzer.sh --config
+    
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função para ver estatísticas
+menu_view_stats() {
+    echo -e "${BLUE}📊 ESTATÍSTICAS DE USO${NC}"
+    echo ""
+    
+    if [[ -f "$LOG_FILE" ]]; then
+        echo "=== Resumo de Análises ==="
+        echo "Total de análises: $(grep -c "analisado" "$LOG_FILE" 2>/dev/null || echo "0")"
+        echo "Arquivos analisados: $(grep -c "Arquivo analisado" "$LOG_FILE" 2>/dev/null || echo "0")"
+        echo "URLs analisadas: $(grep -c "URL analisada" "$LOG_FILE" 2>/dev/null || echo "0")"
+        echo "Domínios analisados: $(grep -c "Domínio analisado" "$LOG_FILE" 2>/dev/null || echo "0")"
+        echo "Hashes analisados: $(grep -c "Hash analisado" "$LOG_FILE" 2>/dev/null || echo "0")"
+        echo "Emails analisados: $(grep -c "Email analisado" "$LOG_FILE" 2>/dev/null || echo "0")"
+        echo ""
+        echo "=== Últimas 5 Análises ==="
+        tail -5 "$LOG_FILE" 2>/dev/null || echo "Nenhum log encontrado"
+    else
+        echo "Nenhum log de análise encontrado ainda."
+    fi
+    
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função para ver logs
+menu_view_logs() {
+    echo -e "${BLUE}📝 VISUALIZAR LOGS${NC}"
+    echo ""
+    
+    if [[ -f "$LOG_FILE" ]]; then
+        echo "=== Últimas 20 entradas do log ==="
+        tail -20 "$LOG_FILE"
+        echo ""
+        echo "Log completo em: $LOG_FILE"
+    else
+        echo "Nenhum arquivo de log encontrado."
+    fi
+    
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função para executar testes
+menu_run_tests() {
+    echo -e "${BLUE}🧪 EXECUTAR TESTES${NC}"
+    echo "Iniciando testes automatizados..."
+    echo ""
+    
+    if [[ -f "./examples/test_samples.sh" ]]; then
+        ./examples/test_samples.sh
+    else
+        echo "Arquivo de testes não encontrado."
+    fi
+    
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função para exibir ajuda
+menu_show_help() {
+    echo -e "${BLUE}📚 AJUDA${NC}"
+    echo ""
+    ./security_analyzer.sh --help
+    
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função para exibir informações sobre a ferramenta
+menu_show_about() {
+    clear
+    echo -e "${CYAN}"
+    cat << "EOF"
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                              SOBRE A FERRAMENTA                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+EOF
+    echo -e "${NC}"
+    
+    echo -e "${GREEN}Security Analyzer Tool v1.0${NC}"
+    echo -e "${YELLOW}Ferramenta Avançada de Análise de Segurança da Informação${NC}"
+    echo ""
+    echo -e "${BLUE}Desenvolvido por: @cybersecwonderwoman${NC}"
+    echo -e "${BLUE}Data: Julho 2025${NC}"
+    echo -e "${BLUE}Linguagem: Bash${NC}"
+    echo ""
+    echo -e "${GREEN}Funcionalidades:${NC}"
+    echo "• Análise de arquivos maliciosos"
+    echo "• Verificação de URLs suspeitas"
+    echo "• Investigação de domínios"
+    echo "• Consulta de hashes em bases de dados"
+    echo "• Análise de emails e cabeçalhos"
+    echo ""
+    echo -e "${GREEN}Fontes de Threat Intelligence:${NC}"
+    echo "• VirusTotal • URLScan.io • Shodan"
+    echo "• ThreatFox • AlienVault OTX • Hybrid Analysis"
+    echo "• MalShare • Joe Sandbox"
+    echo ""
+    echo -e "${PURPLE}@cybersecwonderwoman${NC}"
+    echo ""
+    echo "Pressione ENTER para continuar..."
+    read -r
+}
+
+# Função principal do menu
+main_menu() {
+    while true; do
+        show_main_menu
+        read -r choice
+        
+        case $choice in
+            1) menu_analyze_file ;;
+            2) menu_analyze_url ;;
+            3) menu_analyze_domain ;;
+            4) menu_analyze_hash ;;
+            5) menu_analyze_email ;;
+            6) menu_analyze_header ;;
+            7) menu_analyze_ip ;;
+            8) menu_configure_apis ;;
+            9) menu_view_stats ;;
+            10) menu_view_logs ;;
+            11) menu_run_tests ;;
+            12) menu_show_help ;;
+            13) menu_show_about ;;
+            0) 
+                echo -e "${GREEN}Obrigado por usar o Security Analyzer Tool!${NC}"
+                echo -e "${PURPLE}@cybersecwonderwoman${NC}"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}Opção inválida! Pressione ENTER para continuar...${NC}"
+                read -r
+                ;;
+        esac
+    done
+}
+
+# Verificar se está no diretório correto
+if [[ ! -f "./security_analyzer.sh" ]]; then
+    echo -e "${RED}Erro: Execute este menu a partir do diretório da aplicação${NC}"
+    echo "Certifique-se de que o arquivo security_analyzer.sh está no mesmo diretório."
+    exit 1
+fi
+
+# Executar menu principal
+main_menu
