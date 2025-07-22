@@ -91,12 +91,182 @@ show_main_menu() {
 
 # Função para iniciar servidor HTTP para documentação
 start_docs_server() {
+    echo -e "${CYAN}📚 AJUDA - DOCUMENTAÇÃO${NC}"
+    echo ""
+    
+    # Criar diretório de documentação se não existir
+    mkdir -p "$DOCS_DIR"
+    
     # Copiar README.md para o diretório de documentação
     cp "$SCRIPT_DIR/README.md" "$DOCS_DIR/index.md"
     
+    # Criar um arquivo HTML simples que carrega o README.md
+    cat > "$DOCS_DIR/index.html" << EOF
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Security Analyzer Tool - Documentação</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background-color: #f9f9f9;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #ddd;
+        }
+        code {
+            background-color: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #777;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #eee;
+            margin: 20px 0;
+        }
+        ul {
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Security Analyzer Tool</h1>
+            <p>Documentação Completa</p>
+        </div>
+        
+        <div id="content">
+            <p>Carregando documentação...</p>
+        </div>
+        
+        <div class="footer">
+            <p>Security Analyzer Tool v2.0 | Desenvolvido por @cybersecwonderwoman</p>
+        </div>
+    </div>
+
+    <script>
+        // Função para converter texto simples em HTML
+        function convertToHTML(text) {
+            // Substituir quebras de linha por tags <br>
+            let html = text.replace(/\\n/g, '<br>');
+            
+            // Substituir cabeçalhos
+            html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+            html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+            html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+            
+            // Substituir listas
+            html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+            
+            // Substituir blocos de código
+            html = html.replace(/\`\`\`([^`]+)\`\`\`/g, '<pre><code>$1</code></pre>');
+            
+            // Substituir código inline
+            html = html.replace(/\`([^`]+)\`/g, '<code>$1</code>');
+            
+            // Substituir links
+            html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+            
+            // Substituir linhas horizontais
+            html = html.replace(/^---$/gm, '<hr>');
+            
+            return html;
+        }
+        
+        // Função para carregar o conteúdo do README.md
+        fetch('index.md')
+            .then(response => response.text())
+            .then(text => {
+                // Exibir o conteúdo formatado
+                document.getElementById('content').innerHTML = text
+                    .split('\\n')
+                    .map(line => {
+                        // Cabeçalhos
+                        if (line.startsWith('# ')) return '<h1>' + line.substring(2) + '</h1>';
+                        if (line.startsWith('## ')) return '<h2>' + line.substring(3) + '</h2>';
+                        if (line.startsWith('### ')) return '<h3>' + line.substring(4) + '</h3>';
+                        
+                        // Listas
+                        if (line.startsWith('- ')) return '<li>' + line.substring(2) + '</li>';
+                        
+                        // Linhas horizontais
+                        if (line === '---') return '<hr>';
+                        
+                        // Linhas normais
+                        return line ? '<p>' + line + '</p>' : '<br>';
+                    })
+                    .join('');
+            })
+            .catch(error => {
+                console.error('Erro ao carregar a documentação:', error);
+                document.getElementById('content').innerHTML = '<p>Erro ao carregar a documentação.</p>';
+            });
+    </script>
+</body>
+</html>
+EOF
+    
     # Copiar outros arquivos de documentação
     for doc_file in "$SCRIPT_DIR"/*.md; do
-        if [[ -f "$doc_file" && "$doc_file" != "$SCRIPT_DIR/README.md" ]]; then
+        if [[ -f "$doc_file" ]]; then
             cp "$doc_file" "$DOCS_DIR/"
         fi
     done
@@ -120,6 +290,13 @@ start_docs_server() {
         echo -e "${YELLOW}Não foi possível abrir o navegador automaticamente.${NC}"
         echo -e "${YELLOW}Por favor, acesse http://localhost:8000 manualmente.${NC}"
     fi
+    
+    echo ""
+    echo -e "${GREEN}Documentação disponível em: http://localhost:8000${NC}"
+    echo -e "${YELLOW}O servidor continuará rodando até que você saia do programa.${NC}"
+    
+    # Registrar no log
+    log_message "Documentação acessada pelo usuário"
 }
 
 # Função para parar o servidor HTTP
