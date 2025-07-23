@@ -1,7 +1,5 @@
 # 🛡️ Security Analyzer Tool
 
-<span style="color: purple;">@cybsersecwonderwoman</span>
-
 **Ferramenta Avançada de Análise de Segurança da Informação**
 
 Uma solução completa desenvolvida em Bash para análise profissional de ameaças cibernéticas, integrando múltiplas fontes de threat intelligence para detectar arquivos maliciosos, URLs perigosas, domínios suspeitos e atividades de phishing.
@@ -283,6 +281,6 @@ Para suporte e dúvidas:
 
 ---
 
-**Desenvolvido com ❤️ para a comunidade de cibersegurança**
+**Desenvolvido com ❤️ para a comunidade de cibersegurança por:**
 
 *@cybersecwonderwoman*
