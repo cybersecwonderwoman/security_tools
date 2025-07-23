@@ -114,12 +114,6 @@ Execute a ferramenta e selecione a opção 8 (Configurar APIs) para configurar s
 ### Iniciar a ferramenta
 
 ```bash
-./start.sh
-```
-
-Ou diretamente:
-
-```bash
 ./security_tool.sh
 ```
 
@@ -137,7 +131,7 @@ O menu interativo oferece as seguintes opções:
 8. **⚙️ Configurar APIs** - Configurar chaves de acesso
 9. **📊 Ver Estatísticas** - Relatórios de uso
 10. **📝 Ver Logs** - Visualizar logs de análise
-11. **🧪 Executar Testes** - Testar funcionalidades
+ronni11. **🧪 Executar Testes** - Testar funcionalidades
 12. **📚 Ajuda** - Manual de uso (via navegador)
 13. **ℹ️ Sobre** - Informações da ferramenta
 
@@ -281,6 +275,6 @@ Para suporte e dúvidas:
 
 ---
 
-**Desenvolvido com ❤️ para a comunidade de cibersegurança por:**
+**Desenvolvido com ❤️  para a comunidade de cibersegurança por:**
 
 *@cybersecwonderwoman*
