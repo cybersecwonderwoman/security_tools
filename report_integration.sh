@@ -83,39 +83,272 @@ analyze_ip_with_report() {
 list_reports() {
     local reports_dir="$HOME/.security_analyzer/reports"
     
-    echo -e "${CYAN}Relatórios Gerados:${NC}"
+    echo -e "${CYAN}📋 RELATÓRIOS GERADOS${NC}"
     echo
     
-    if [[ ! -d "$reports_dir" || -z "$(ls -A "$reports_dir")" ]]; then
-        echo "Nenhum relatório encontrado."
+    if [[ ! -d "$reports_dir" ]]; then
+        echo "❌ Diretório de relatórios não encontrado."
+        echo "Nenhum relatório foi gerado ainda."
         return
     fi
     
-    echo -e "ID\t\t\tData\t\tTipo\t\tAlvo"
-    echo -e "----------------------------------------------------------------------"
+    # Contar relatórios
+    local report_count=$(find "$reports_dir" -name "*.html" -type f 2>/dev/null | wc -l)
     
-    for report in "$reports_dir"/*.html; do
+    if [[ $report_count -eq 0 ]]; then
+        echo "📄 Nenhum relatório encontrado."
+        echo "Execute uma análise para gerar relatórios."
+        return
+    fi
+    
+    echo "📊 Total de relatórios: $report_count"
+    echo
+    echo -e "${BLUE}┌─────────────────────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${BLUE}│${NC} ID do Relatório          │ Data       │ Tipo        │ Status      │ Alvo     ${BLUE}│${NC}"
+    echo -e "${BLUE}├─────────────────────────────────────────────────────────────────────────────┤${NC}"
+    
+    # Listar relatórios ordenados por data (mais recente primeiro)
+    local counter=1
+    for report in $(find "$reports_dir" -name "*.html" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | cut -d' ' -f2-); do
+        if [[ ! -f "$report" ]]; then
+            continue
+        fi
+        
         local report_name=$(basename "$report" .html)
         local report_date=$(echo "$report_name" | cut -d'-' -f2)
-        local report_date_formatted="${report_date:0:4}-${report_date:4:2}-${report_date:6:2}"
+        local report_date_formatted="${report_date:6:2}/${report_date:4:2}/${report_date:0:4}"
         
-        # Extrair tipo e alvo do arquivo HTML
-        local analysis_type=$(grep -o '<strong>Tipo de Análise:</strong> [^<]*' "$report" | sed 's/<strong>Tipo de Análise:<\/strong> //')
-        local target=$(grep -o '<strong>Alvo:</strong> [^<]*' "$report" | sed 's/<strong>Alvo:<\/strong> //')
+        # Extrair informações do arquivo HTML
+        local analysis_type=$(grep -o '<strong>Tipo de Análise:</strong> [^<]*' "$report" 2>/dev/null | sed 's/<strong>Tipo de Análise:<\/strong> //' | head -1)
+        local target=$(grep -o '<strong>Alvo:</strong> [^<]*' "$report" 2>/dev/null | sed 's/<strong>Alvo:<\/strong> //' | head -1)
+        local overall_status=$(grep -o 'Status Geral</h3>[^<]*<p>[^<]*' "$report" 2>/dev/null | sed 's/.*<p>//' | head -1)
         
-        echo -e "$report_name\t$report_date_formatted\t$analysis_type\t$target"
+        # Valores padrão se não encontrar
+        [[ -z "$analysis_type" ]] && analysis_type="N/A"
+        [[ -z "$target" ]] && target="N/A"
+        [[ -z "$overall_status" ]] && overall_status="N/A"
+        
+        # Truncar strings longas
+        [[ ${#target} -gt 15 ]] && target="${target:0:12}..."
+        [[ ${#analysis_type} -gt 10 ]] && analysis_type="${analysis_type:0:7}..."
+        [[ ${#overall_status} -gt 10 ]] && overall_status="${overall_status:0:7}..."
+        
+        # Colorir status
+        local status_color=""
+        case "$overall_status" in
+            *"Limpo"*|*"Seguro"*)
+                status_color="${GREEN}"
+                ;;
+            *"Suspeito"*)
+                status_color="${YELLOW}"
+                ;;
+            *"Malicioso"*|*"Perigoso"*)
+                status_color="${RED}"
+                ;;
+            *)
+                status_color="${NC}"
+                ;;
+        esac
+        
+        printf "${BLUE}│${NC} %-2d %-18s │ %-10s │ %-11s │ %s%-11s${NC} │ %-8s ${BLUE}│${NC}\n" \
+            "$counter" "$report_name" "$report_date_formatted" "$analysis_type" \
+            "$status_color" "$overall_status" "$target"
+        
+        ((counter++))
+        
+        # Limitar a 20 relatórios por página
+        if [[ $counter -gt 20 ]]; then
+            echo -e "${BLUE}│${NC} ... e mais $((report_count - 20)) relatórios                                    ${BLUE}│${NC}"
+            break
+        fi
     done
     
+    echo -e "${BLUE}└─────────────────────────────────────────────────────────────────────────────┘${NC}"
     echo
-    echo -n "Digite o ID do relatório para abrir (ou Enter para voltar): "
-    read -r report_id
     
-    if [[ -n "$report_id" && -f "$reports_dir/$report_id.html" ]]; then
-        open_report "$reports_dir/$report_id.html"
-    fi
+    # Menu de opções
+    echo -e "${CYAN}Opções:${NC}"
+    echo "  [1-$counter] Abrir relatório específico"
+    echo "  [a] Abrir todos os relatórios recentes (últimos 5)"
+    echo "  [s] Iniciar servidor web"
+    echo "  [d] Excluir relatório"
+    echo "  [c] Limpar todos os relatórios"
+    echo "  [0] Voltar"
+    echo
+    echo -n "Escolha uma opção: "
+    read -r choice
+    
+    case "$choice" in
+        [1-9]|[1-2][0-9])
+            # Abrir relatório específico
+            local selected_report=$(find "$reports_dir" -name "*.html" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n "${choice}p" | cut -d' ' -f2-)
+            if [[ -f "$selected_report" ]]; then
+                echo "Abrindo relatório: $(basename "$selected_report")"
+                open_report "$selected_report"
+            else
+                echo "❌ Relatório não encontrado."
+            fi
+            ;;
+        "a"|"A")
+            # Abrir últimos 5 relatórios
+            echo "Abrindo os 5 relatórios mais recentes..."
+            local count=0
+            for report in $(find "$reports_dir" -name "*.html" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | cut -d' ' -f2-); do
+                if [[ $count -lt 5 ]]; then
+                    open_report "$report"
+                    sleep 1  # Pequena pausa entre aberturas
+                    ((count++))
+                else
+                    break
+                fi
+            done
+            ;;
+        "s"|"S")
+            # Iniciar servidor web
+            start_report_server
+            echo "Servidor iniciado. Acesse: http://localhost:8080/"
+            ;;
+        "d"|"D")
+            # Excluir relatório específico
+            echo -n "Digite o número do relatório para excluir: "
+            read -r del_choice
+            local del_report=$(find "$reports_dir" -name "*.html" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n "${del_choice}p" | cut -d' ' -f2-)
+            if [[ -f "$del_report" ]]; then
+                echo -n "Tem certeza que deseja excluir $(basename "$del_report")? (s/n): "
+                read -r confirm
+                if [[ "$confirm" == "s" || "$confirm" == "S" ]]; then
+                    rm -f "$del_report"
+                    echo "✅ Relatório excluído com sucesso."
+                else
+                    echo "Operação cancelada."
+                fi
+            else
+                echo "❌ Relatório não encontrado."
+            fi
+            ;;
+        "c"|"C")
+            # Limpar todos os relatórios
+            echo -n "⚠️  Tem certeza que deseja excluir TODOS os relatórios? (s/n): "
+            read -r confirm
+            if [[ "$confirm" == "s" || "$confirm" == "S" ]]; then
+                rm -f "$reports_dir"/*.html 2>/dev/null
+                echo "✅ Todos os relatórios foram excluídos."
+            else
+                echo "Operação cancelada."
+            fi
+            ;;
+        "0")
+            return
+            ;;
+        *)
+            echo "❌ Opção inválida."
+            ;;
+    esac
 }
 
-# Função para gerenciar relatórios
+# Função para mostrar detalhes de um relatório específico
+show_report_details() {
+    local report_file="$1"
+    
+    if [[ ! -f "$report_file" ]]; then
+        echo "❌ Relatório não encontrado: $report_file"
+        return 1
+    fi
+    
+    local report_name=$(basename "$report_file" .html)
+    
+    echo -e "${CYAN}📄 DETALHES DO RELATÓRIO${NC}"
+    echo -e "${BLUE}═══════════════════════════════════════════════════════════════════${NC}"
+    echo
+    
+    # Extrair informações do HTML
+    local analysis_type=$(grep -o '<strong>Tipo de Análise:</strong> [^<]*' "$report_file" 2>/dev/null | sed 's/<strong>Tipo de Análise:<\/strong> //' | head -1)
+    local target=$(grep -o '<strong>Alvo:</strong> [^<]*' "$report_file" 2>/dev/null | sed 's/<strong>Alvo:<\/strong> //' | head -1)
+    local timestamp=$(grep -o '<strong>Timestamp:</strong> [^<]*' "$report_file" 2>/dev/null | sed 's/<strong>Timestamp:<\/strong> //' | head -1)
+    local overall_status=$(grep -o 'Status Geral</h3>[^<]*<p>[^<]*' "$report_file" 2>/dev/null | sed 's/.*<p>//' | head -1)
+    local threat_level=$(grep -o 'Nível de Ameaça</h3>[^<]*<p>[^<]*' "$report_file" 2>/dev/null | sed 's/.*<p>//' | head -1)
+    local sources_count=$(grep -o 'Fontes Consultadas</h3>[^<]*<p>[^<]*' "$report_file" 2>/dev/null | sed 's/.*<p>//' | head -1)
+    
+    # Informações básicas
+    echo -e "${YELLOW}ID do Relatório:${NC} $report_name"
+    echo -e "${YELLOW}Tipo de Análise:${NC} ${analysis_type:-N/A}"
+    echo -e "${YELLOW}Alvo Analisado:${NC} ${target:-N/A}"
+    echo -e "${YELLOW}Data/Hora:${NC} ${timestamp:-N/A}"
+    echo
+    
+    # Status com cores
+    local status_color=""
+    case "$overall_status" in
+        *"Limpo"*|*"Seguro"*)
+            status_color="${GREEN}"
+            ;;
+        *"Suspeito"*)
+            status_color="${YELLOW}"
+            ;;
+        *"Malicioso"*|*"Perigoso"*)
+            status_color="${RED}"
+            ;;
+        *)
+            status_color="${NC}"
+            ;;
+    esac
+    
+    echo -e "${YELLOW}Status Geral:${NC} ${status_color}${overall_status:-N/A}${NC}"
+    echo -e "${YELLOW}Nível de Ameaça:${NC} ${threat_level:-N/A}"
+    echo -e "${YELLOW}Fontes Consultadas:${NC} ${sources_count:-N/A}"
+    echo
+    
+    # Informações do arquivo
+    local file_size=$(du -h "$report_file" 2>/dev/null | cut -f1)
+    local file_date=$(stat -c %y "$report_file" 2>/dev/null | cut -d'.' -f1)
+    
+    echo -e "${BLUE}Informações do Arquivo:${NC}"
+    echo -e "  Tamanho: ${file_size:-N/A}"
+    echo -e "  Criado em: ${file_date:-N/A}"
+    echo -e "  Localização: $report_file"
+    echo
+    
+    # Opções
+    echo -e "${CYAN}Opções:${NC}"
+    echo "  [1] 🌐 Abrir no navegador"
+    echo "  [2] 📋 Copiar caminho do arquivo"
+    echo "  [3] 🗑️  Excluir este relatório"
+    echo "  [0] 🔙 Voltar"
+    echo
+    echo -n "Escolha uma opção: "
+    read -r choice
+    
+    case "$choice" in
+        1)
+            open_report "$report_file"
+            ;;
+        2)
+            echo "$report_file" | xclip -selection clipboard 2>/dev/null || echo "Caminho: $report_file"
+            echo "✅ Caminho copiado (ou exibido acima)"
+            ;;
+        3)
+            echo -n "⚠️  Tem certeza que deseja excluir este relatório? (s/n): "
+            read -r confirm
+            if [[ "$confirm" == "s" || "$confirm" == "S" ]]; then
+                rm -f "$report_file"
+                echo "✅ Relatório excluído com sucesso."
+                return 0
+            else
+                echo "Operação cancelada."
+            fi
+            ;;
+        0)
+            return 0
+            ;;
+        *)
+            echo "❌ Opção inválida."
+            ;;
+    esac
+    
+    echo
+    echo -n "Pressione Enter para continuar..."
+    read
+}
 manage_reports() {
     while true; do
         echo -e "${CYAN}"

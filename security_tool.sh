@@ -25,6 +25,15 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 # Criar diretórios necessários
 mkdir -p "$CONFIG_DIR" "$CACHE_DIR" "$DOCS_DIR"
 
+# Importar scripts de relatórios HTML se existirem
+if [[ -f "$SCRIPT_DIR/html_report.sh" ]]; then
+    source "$SCRIPT_DIR/html_report.sh"
+fi
+
+if [[ -f "$SCRIPT_DIR/report_integration.sh" ]]; then
+    source "$SCRIPT_DIR/report_integration.sh"
+fi
+
 # Função para logging
 log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
@@ -75,11 +84,12 @@ show_main_menu() {
     echo ""
     echo -e "${BLUE}  [8] ⚙️  Configurar APIs${NC}          - Configurar chaves de acesso"
     echo -e "${BLUE}  [9] 📊 Ver Estatísticas${NC}         - Relatórios de uso"
-    echo -e "${BLUE}  [10] 📝 Ver Logs${NC}                 - Visualizar logs de análise"
-    echo -e "${BLUE}  [11] 🧪 Executar Testes${NC}         - Testar funcionalidades"
+    echo -e "${BLUE}  [10] 📈 Relatórios HTML${NC}         - Gerenciar relatórios HTML"
+    echo -e "${BLUE}  [11] 📝 Ver Logs${NC}                 - Visualizar logs de análise"
+    echo -e "${BLUE}  [12] 🧪 Executar Testes${NC}         - Testar funcionalidades"
     echo ""
-    echo -e "${CYAN}  [12] 📚 Ajuda${NC}                   - Manual de uso (via navegador)"
-    echo -e "${CYAN}  [13] ℹ️  Sobre${NC}                   - Informações da ferramenta"
+    echo -e "${CYAN}  [13] 📚 Ajuda${NC}                   - Manual de uso (via navegador)"
+    echo -e "${CYAN}  [14] ℹ️  Sobre${NC}                   - Informações da ferramenta"
     echo ""
     echo -e "${RED}  [0] 🚪 Sair${NC}                     - Encerrar programa"
     echo ""
@@ -995,24 +1005,30 @@ main_menu() {
                 read -r
                 ;;
             10)
-                view_logs
+                manage_reports
                 echo ""
                 echo "Pressione ENTER para continuar..."
                 read -r
                 ;;
             11)
-                run_tests
+                view_logs
                 echo ""
                 echo "Pressione ENTER para continuar..."
                 read -r
                 ;;
             12)
-                start_docs_server
+                run_tests
                 echo ""
                 echo "Pressione ENTER para continuar..."
                 read -r
                 ;;
             13)
+                start_docs_server
+                echo ""
+                echo "Pressione ENTER para continuar..."
+                read -r
+                ;;
+            14)
                 show_about
                 echo ""
                 echo "Pressione ENTER para continuar..."
