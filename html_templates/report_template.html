@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Analyzer - Relatório Detalhado</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #34495e;
+            --text-color: #2c3e50;
+            --background-color: #f9f9f9;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            padding: 0;
+            margin: 0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px 0;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+        }
+        
+        .logo h1 {
+            font-size: 24px;
+            margin-left: 10px;
+        }
+        
+        .report-meta {
+            text-align: right;
+            font-size: 14px;
+        }
+        
+        .report-section {
+            background-color: white;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .section-title {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--light-color);
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .summary-box {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+        }
+        
+        .summary-item {
+            flex: 1;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            margin: 0 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .summary-item.safe {
+            background-color: rgba(46, 204, 113, 0.15);
+            border-left: 4px solid var(--success-color);
+        }
+        
+        .summary-item.warning {
+            background-color: rgba(243, 156, 18, 0.15);
+            border-left: 4px solid var(--warning-color);
+        }
+        
+        .summary-item.danger {
+            background-color: rgba(231, 76, 60, 0.15);
+            border-left: 4px solid var(--danger-color);
+        }
+        
+        .summary-item h3 {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: var(--dark-color);
+        }
+        
+        .summary-item p {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .detail-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        .detail-table th, .detail-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--light-color);
+        }
+        
+        .detail-table th {
+            background-color: rgba(44, 62, 80, 0.05);
+            font-weight: 600;
+        }
+        
+        .detail-table tr:hover {
+            background-color: rgba(44, 62, 80, 0.02);
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-badge.safe {
+            background-color: rgba(46, 204, 113, 0.15);
+            color: var(--success-color);
+        }
+        
+        .status-badge.warning {
+            background-color: rgba(243, 156, 18, 0.15);
+            color: var(--warning-color);
+        }
+        
+        .status-badge.danger {
+            background-color: rgba(231, 76, 60, 0.15);
+            color: var(--danger-color);
+        }
+        
+        .code-block {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Courier New', Courier, monospace;
+            overflow-x: auto;
+            margin: 15px 0;
+            border-left: 4px solid var(--secondary-color);
+        }
+        
+        .recommendation-list {
+            list-style-type: none;
+            margin: 15px 0;
+        }
+        
+        .recommendation-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--light-color);
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .recommendation-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .recommendation-list li::before {
+            content: "→";
+            color: var(--secondary-color);
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        /* Estilos adicionais para melhorar a formatação dos detalhes */
+        .section-header {
+            font-size: 18px;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+        
+        .detail-item {
+            padding: 5px 0;
+            display: flex;
+            flex-wrap: wrap;
+        }
+        
+        .detail-key {
+            font-weight: 600;
+            margin-right: 5px;
+            color: var(--dark-color);
+        }
+        
+        .detail-text {
+            padding: 3px 0;
+        }
+        
+        .tech-item {
+            padding: 5px 0;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        
+        .tech-key {
+            font-weight: 600;
+            margin-right: 5px;
+            color: var(--secondary-color);
+        }
+        
+        footer {
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+            padding: 20px 0;
+            margin-top: 30px;
+            font-size: 14px;
+        }
+        
+        .chart-container {
+            height: 300px;
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .summary-box {
+                flex-direction: column;
+            }
+            
+            .summary-item {
+                margin: 10px 0;
+            }
+        }
+        
+        /* Animações */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .report-section {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="white" stroke-width="2"/>
+                    <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="white" stroke-width="2"/>
+                    <path d="M12 6V8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M12 16V18" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M6 12H8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M16 12H18" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <h1>Security Analyzer Tool</h1>
+            </div>
+            <div class="report-meta">
+                <p>Data: {{DATE}}</p>
+                <p>ID do Relatório: {{REPORT_ID}}</p>
+            </div>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="report-section">
+            <h2 class="section-title">Resumo da Análise</h2>
+            <p><strong>Tipo de Análise:</strong> {{ANALYSIS_TYPE}}</p>
+            <p><strong>Alvo:</strong> {{TARGET}}</p>
+            <p><strong>Timestamp:</strong> {{TIMESTAMP}}</p>
+            
+            <div class="summary-box">
+                <div class="summary-item {{OVERALL_STATUS_CLASS}}">
+                    <h3>Status Geral</h3>
+                    <p>{{OVERALL_STATUS}}</p>
+                </div>
+                <div class="summary-item {{THREAT_LEVEL_CLASS}}">
+                    <h3>Nível de Ameaça</h3>
+                    <p>{{THREAT_LEVEL}}</p>
+                </div>
+                <div class="summary-item">
+                    <h3>Fontes Consultadas</h3>
+                    <p>{{SOURCES_COUNT}}</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="report-section">
+            <h2 class="section-title">Detalhes da Análise</h2>
+            {{ANALYSIS_DETAILS}}
+        </div>
+        
+        <div class="report-section">
+            <h2 class="section-title">Resultados por Fonte</h2>
+            <table class="detail-table">
+                <thead>
+                    <tr>
+                        <th>Fonte</th>
+                        <th>Status</th>
+                        <th>Detalhes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{RESULTS_TABLE}}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="report-section">
+            <h2 class="section-title">Informações Técnicas</h2>
+            <div class="code-block">
+                {{TECHNICAL_INFO}}
+            </div>
+        </div>
+        
+        <div class="report-section">
+            <h2 class="section-title">Recomendações</h2>
+            <ul class="recommendation-list">
+                {{RECOMMENDATIONS}}
+            </ul>
+        </div>
+    </div>
+    
+    <footer>
+        <div class="container">
+            <p>Security Analyzer Tool &copy; 2025 - Relatório gerado em {{DATE}} {{TIME}}</p>
+        </div>
+    </footer>
+</body>
+</html>
