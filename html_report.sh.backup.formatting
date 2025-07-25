@@ -200,128 +200,154 @@ extract_results_by_source() {
 }
 
 # Função principal para gerar relatório HTML
-# Função principal para gerar relatório HTML (versão corrigida)
-# Função principal para gerar relatório HTML (versão com limpeza ANSI)
-# Função principal para gerar relatório HTML (versão com limpeza ANSI)
-# Função principal para gerar relatório HTML (versão com limpeza ANSI)
 generate_html_report() {
     local analysis_type="$1"
     local target="$2"
     local analysis_text="$3"
     
-    # Carregar função de limpeza ANSI
-    source "$(dirname "${BASH_SOURCE[0]}")/ansi_cleaner.sh" 2>/dev/null || {
-        # Função de limpeza ANSI inline se o arquivo não existir
-        clean_ansi_codes() {
-            local text="$1"
-            text=$(echo "$text" | sed -r 's/\x1B\[[0-9;]*[JKmsu]//g')
-            text=$(echo "$text" | sed -r 's/\x1B\[[0-9;]*[A-Za-z]//g')
-            text=$(echo "$text" | sed -r 's/\x1B\[H//g')
-            text=$(echo "$text" | sed -r 's/\x1B\[2J//g')
-            text=$(echo "$text" | sed -r 's/\x1B\[3J//g')
-            text=$(echo "$text" | sed 's/\[0;31m//g')
-            text=$(echo "$text" | sed 's/\[0;32m//g')
-            text=$(echo "$text" | sed 's/\[1;33m//g')
-            text=$(echo "$text" | sed 's/\[0;34m//g')
-            text=$(echo "$text" | sed 's/\[0;35m//g')
-            text=$(echo "$text" | sed 's/\[0;36m//g')
-            text=$(echo "$text" | sed 's/\[1;37m//g')
-            text=$(echo "$text" | sed 's/\[1m//g')
-            text=$(echo "$text" | sed 's/\[0m//g')
-            echo "$text"
-        }
-    }
-    
     local report_id=$(generate_report_id)
     local date_now=$(date '+%d/%m/%Y')
     local time_now=$(date '+%H:%M:%S')
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local timestamp="$date_now $time_now"
     
-    # LIMPAR CÓDIGOS ANSI DO TEXTO DE ANÁLISE
-    analysis_text=$(clean_ansi_codes "$analysis_text")
+    # Determinar status geral e nível de ameaça
+    local overall_status="Limpo"
+    if [[ "$analysis_text" == *"AMEAÇA DETECTADA"* || "$analysis_text" == *"Malicioso"* ]]; then
+        overall_status="Malicioso"
+    elif [[ "$analysis_text" == *"Suspeito"* ]]; then
+        overall_status="Suspeito"
+    fi
     
-    # Converter texto para HTML com formatação adequada
-    local formatted_analysis=""
+    local overall_status_class=$(get_status_class "$overall_status")
+    local threat_level=$(determine_threat_level "$analysis_text")
+    local threat_level_class=$(get_status_class "$threat_level")
     
-    # Processar linha por linha
+    # Contar fontes consultadas (simplificado)
+    local sources_count=1
+    if [[ "$analysis_text" == *"[VirusTotal]"* ]]; then ((sources_count++)); fi
+    if [[ "$analysis_text" == *"[ThreatFox]"* ]]; then ((sources_count++)); fi
+    if [[ "$analysis_text" == *"[URLScan]"* ]]; then ((sources_count++)); fi
+    if [[ "$analysis_text" == *"[Shodan]"* ]]; then ((sources_count++)); fi
+    
+    # Preparar detalhes da análise com formatação melhorada
+    local analysis_details=""
+    
+    # Limpar códigos ANSI do texto de análise
+    local clean_text=$(clean_ansi_codes "$analysis_text")
+    
+    # Processar o texto linha por linha para melhor formatação
     while IFS= read -r line; do
         # Pular linhas vazias
-        [[ -z "$line" ]] && continue
-        
-        # Limpar códigos ANSI da linha
-        line=$(clean_ansi_codes "$line")
-        
-        # Detectar seções (texto entre colchetes)
-        if [[ "$line" =~ ^\[.*\]$ ]]; then
-            section_name=$(echo "$line" | sed 's/\[\(.*\)\]/\1/')
-            formatted_analysis+="<h3 style=\"color: #3498db; margin-top: 20px; border-bottom: 2px solid #3498db; padding-bottom: 5px;\">$section_name</h3>"
-        
-        # Detectar linhas de status/resultado
-        elif [[ "$line" =~ ^[[:space:]]*[✅❌⚠️] ]]; then
-            # Colorir ícones de status
-            colored_line=$(echo "$line" | sed 's/✅/<span style="color: #2ecc71;">✅<\/span>/g')
-            colored_line=$(echo "$colored_line" | sed 's/❌/<span style="color: #e74c3c;">❌<\/span>/g')
-            colored_line=$(echo "$colored_line" | sed 's/⚠️/<span style="color: #f39c12;">⚠️<\/span>/g')
-            formatted_analysis+="<p style=\"margin: 10px 0; font-weight: bold;\">$colored_line</p>"
-        
-        # Detectar linhas com dois pontos (chave: valor)
-        elif [[ "$line" =~ ^[^:]+:[[:space:]]*.+ ]]; then
-            key=$(echo "$line" | cut -d':' -f1)
-            value=$(echo "$line" | cut -d':' -f2- | sed 's/^[[:space:]]*//')
-            formatted_analysis+="<div style=\"margin: 8px 0;\"><strong style=\"color: #2c3e50;\">$key:</strong> <span style=\"color: #34495e;\">$value</span></div>"
-        
-        # Detectar linhas que começam com espaços (detalhes)
-        elif [[ "$line" =~ ^[[:space:]]{2,} ]]; then
-            clean_line=$(echo "$line" | sed 's/^[[:space:]]*//')
-            formatted_analysis+="<p style=\"margin: 5px 0 5px 20px; color: #7f8c8d;\">$clean_line</p>"
-        
-        # Linhas normais
-        else
-            formatted_analysis+="<p style=\"margin: 10px 0;\">$line</p>"
+        if [[ -z "$line" ]]; then
+            analysis_details+="<br>"
+            continue
         fi
-    done <<< "$analysis_text"
+        
+        # Destacar cabeçalhos entre colchetes
+        if [[ "$line" == *"["*"]"* ]]; then
+            # Extrair apenas o texto entre colchetes
+            local header=$(echo "$line" | grep -o '\[.*\]')
+            
+            # Adicionar espaçamento antes de novos cabeçalhos (exceto o primeiro)
+            if [[ "$analysis_details" != "" ]]; then
+                analysis_details+="<br><br>"
+            fi
+            
+            # Usar apenas o cabeçalho formatado, sem duplicar
+            analysis_details+="<div class=\"section-header\"><strong style=\"color: #3498db;\">$header</strong></div>"
+        else
+            # Processar linhas normais
+            # Verificar se é uma linha com ":" para formatar como par chave-valor
+            if [[ "$line" == *":"* && ! "$line" == "http"* && ! "$line" == "https"* ]]; then
+                local key=$(echo "$line" | cut -d':' -f1)
+                local value=$(echo "$line" | cut -d':' -f2-)
+                analysis_details+="<div class=\"detail-item\"><span class=\"detail-key\">$key:</span>$value</div>"
+            else
+                analysis_details+="<div class=\"detail-text\">$line</div>"
+            fi
+        fi
+    done <<< "$clean_text"
     
-    # Determinar status geral
-    local overall_status="Limpo"
-    local overall_status_class="success"
-    local threat_level="Baixo"
-    local threat_level_class="success"
+    # Extrair resultados por fonte
+    local results_table=$(extract_results_by_source "$analysis_text")
     
-    if [[ "$analysis_text" == *"AMEAÇA DETECTADA"* || "$analysis_text" == *"SUSPEITO DETECTADO"* || "$analysis_text" == *"MALICIOSO"* ]]; then
-        overall_status="Malicioso"
-        overall_status_class="danger"
-        threat_level="Alto"
-        threat_level_class="danger"
-    elif [[ "$analysis_text" == *"Suspeito"* || "$analysis_text" == *"Risco: Alto"* ]]; then
-        overall_status="Suspeito"
-        overall_status_class="warning"
-        threat_level="Médio"
-        threat_level_class="warning"
-    fi
+    # Gerar recomendações
+    local recommendations=$(generate_recommendations "$analysis_type" "$analysis_text")
     
-    # Contar fontes de análise
-    local sources_count=1
-    [[ "$analysis_text" == *"VirusTotal"* ]] && ((sources_count++))
-    [[ "$analysis_text" == *"Shodan"* ]] && ((sources_count++))
-    [[ "$analysis_text" == *"ThreatFox"* ]] && ((sources_count++))
+    # Preparar informações técnicas com formatação melhorada
+    local technical_info=""
+    local tech_data=""
     
-    # Gerar recomendações baseadas no resultado
-    local recommendations=""
-    if [[ "$overall_status" == "Malicioso" ]]; then
-        recommendations="<li>🚫 Não execute ou acesse este item</li>"
-        recommendations+="<li>🛡️ Coloque em quarentena imediatamente</li>"
-        recommendations+="<li>🔍 Investigue outros sistemas que possam ter sido expostos</li>"
-        recommendations+="<li>📞 Notifique a equipe de segurança</li>"
-    elif [[ "$overall_status" == "Suspeito" ]]; then
-        recommendations="<li>⚠️ Proceda com extrema cautela</li>"
-        recommendations+="<li>🔍 Realize análise adicional</li>"
-        recommendations+="<li>🛡️ Monitore atividades relacionadas</li>"
-        recommendations+="<li>📋 Documente os achados</li>"
-    else
-        recommendations="<li>✅ Item aparenta estar limpo</li>"
-        recommendations+="<li>🔍 Mantenha monitoramento regular</li>"
-        recommendations+="<li>📊 Considere análise periódica</li>"
-    fi
+    # Limpar códigos ANSI do texto de análise
+    local clean_analysis_text=$(clean_ansi_codes "$analysis_text")
+    
+    case "$analysis_type" in
+        "Arquivo")
+            # Extrair informações de hash e formatar adequadamente
+            tech_data=$(echo "$clean_analysis_text" | grep -A 5 "\[Hashes\]")
+            ;;
+        "URL")
+            tech_data="URL: $target"
+            if [[ "$clean_analysis_text" == *"Domínio:"* ]]; then
+                tech_data+=$'\n'$(echo "$clean_analysis_text" | grep "Domínio:")
+            fi
+            if [[ "$clean_analysis_text" == *"Caminho:"* ]]; then
+                tech_data+=$'\n'$(echo "$clean_analysis_text" | grep "Caminho:")
+            fi
+            if [[ "$clean_analysis_text" == *"Parâmetros:"* ]]; then
+                tech_data+=$'\n'$(echo "$clean_analysis_text" | grep "Parâmetros:")
+            fi
+            ;;
+        "Domínio")
+            tech_data="Domínio: $target"
+            if [[ "$clean_analysis_text" == *"Registros DNS"* ]]; then
+                tech_data+=$'\n\nRegistros DNS:'
+                tech_data+=$'\n'$(echo "$clean_analysis_text" | grep -A 5 "Registros DNS" | grep -v "Registros DNS")
+            fi
+            ;;
+        "Hash")
+            tech_data="Hash: $target"
+            if [[ "$clean_analysis_text" == *"Tipo:"* ]]; then
+                tech_data+=$'\n'$(echo "$clean_analysis_text" | grep "Tipo:")
+            fi
+            ;;
+        "Email")
+            tech_data="Email: $target"
+            if [[ "$clean_analysis_text" == *"Domínio:"* ]]; then
+                tech_data+=$'\n'$(echo "$clean_analysis_text" | grep "Domínio:")
+            fi
+            ;;
+        "IP")
+            tech_data="IP: $target"
+            if [[ "$clean_analysis_text" == *"Localização:"* ]]; then
+                tech_data+=$'\n'$(echo "$clean_analysis_text" | grep "Localização:")
+            fi
+            if [[ "$clean_analysis_text" == *"ASN:"* ]]; then
+                tech_data+=$'\n'$(echo "$clean_analysis_text" | grep "ASN:")
+            fi
+            ;;
+        *)
+            tech_data="Tipo de análise: $analysis_type"
+            tech_data+=$'\n'"Alvo: $target"
+            ;;
+    esac
+    
+    # Formatar as informações técnicas em HTML
+    while IFS= read -r line; do
+        if [[ -z "$line" ]]; then
+            technical_info+="<br>"
+            continue
+        fi
+        
+        # Formatar pares chave-valor
+        if [[ "$line" == *":"* ]]; then
+            local key=$(echo "$line" | cut -d':' -f1)
+            local value=$(echo "$line" | cut -d':' -f2-)
+            technical_info+="<div class=\"tech-item\"><span class=\"tech-key\">$key:</span>$value</div>"
+        else
+            technical_info+="<div>$line</div>"
+        fi
+    done <<< "$tech_data"
     
     # Ler o template HTML
     local template=$(cat "$TEMPLATE_DIR/report_template.html")
@@ -338,9 +364,9 @@ generate_html_report() {
     template=${template//\{\{THREAT_LEVEL\}\}/$threat_level}
     template=${template//\{\{THREAT_LEVEL_CLASS\}\}/$threat_level_class}
     template=${template//\{\{SOURCES_COUNT\}\}/$sources_count}
-    template=${template//\{\{ANALYSIS_DETAILS\}\}/$formatted_analysis}
-    template=${template//\{\{RESULTS_TABLE\}\}/}
-    template=${template//\{\{TECHNICAL_INFO\}\}/}
+    template=${template//\{\{ANALYSIS_DETAILS\}\}/$analysis_details}
+    template=${template//\{\{RESULTS_TABLE\}\}/$results_table}
+    template=${template//\{\{TECHNICAL_INFO\}\}/$technical_info}
     template=${template//\{\{RECOMMENDATIONS\}\}/$recommendations}
     
     # Salvar o relatório HTML
@@ -368,7 +394,6 @@ start_report_server() {
 }
 
 # Função para abrir o relatório no navegador (versão corrigida)
-# Função para abrir o relatório no navegador (versão com nova janela forçada)
 open_report() {
     local report_file="$1"
     local report_name=$(basename "$report_file")
@@ -385,7 +410,7 @@ open_report() {
     if ! pgrep -f "python.*http.server.*$PORT" &>/dev/null && ! pgrep -f "python.*SimpleHTTPServer.*$PORT" &>/dev/null; then
         echo "🚀 Iniciando servidor web..."
         start_report_server
-        sleep 2
+        sleep 2  # Aguardar servidor inicializar
     else
         echo "✅ Servidor já está rodando"
     fi
@@ -421,62 +446,28 @@ open_report() {
     if curl -s -I "$report_url" >/dev/null 2>&1; then
         echo "✅ Relatório acessível em: $report_url"
         
-        # NOVA ABORDAGEM: Tentar múltiplos métodos com nova janela forçada
-        local opened=false
-        
-        # Método 1: Firefox com nova janela
-        if command -v firefox &>/dev/null && [[ "$opened" == false ]]; then
-            echo "🌐 Tentando abrir com Firefox (nova janela)..."
-            if firefox --new-window "$report_url" &>/dev/null & then
-                echo "✅ Firefox executado"
-                opened=true
-                sleep 2
-            fi
-        fi
-        
-        # Método 2: Google Chrome com nova janela
-        if command -v google-chrome &>/dev/null && [[ "$opened" == false ]]; then
-            echo "🌐 Tentando abrir com Google Chrome (nova janela)..."
-            if google-chrome --new-window "$report_url" &>/dev/null & then
-                echo "✅ Google Chrome executado"
-                opened=true
-                sleep 2
-            fi
-        fi
-        
-        # Método 3: Chromium com nova janela
-        if command -v chromium-browser &>/dev/null && [[ "$opened" == false ]]; then
-            echo "🌐 Tentando abrir com Chromium (nova janela)..."
-            if chromium-browser --new-window "$report_url" &>/dev/null & then
-                echo "✅ Chromium executado"
-                opened=true
-                sleep 2
-            fi
-        fi
-        
-        # Método 4: xdg-open como fallback
-        if [[ "$opened" == false ]]; then
-            echo "🌐 Usando xdg-open como fallback..."
-            if command -v xdg-open &>/dev/null; then
-                xdg-open "$report_url" &
-                echo "✅ xdg-open executado"
-                opened=true
-            fi
-        fi
-        
-        if [[ "$opened" == true ]]; then
-            echo "🎯 Relatório disponível em: $report_url"
-            echo ""
-            echo "📋 INSTRUÇÕES:"
-            echo "   - O navegador deve abrir em NOVA JANELA"
-            echo "   - Se não aparecer, verifique a barra de tarefas"
-            echo "   - Ou acesse manualmente: $report_url"
-            echo "   - Use Alt+Tab para encontrar a janela"
+        # Abrir o navegador
+        if command -v xdg-open &>/dev/null; then
+            echo "🌐 Abrindo com xdg-open..."
+            xdg-open "$report_url" &
+        elif command -v open &>/dev/null; then
+            echo "🌐 Abrindo com open..."
+            open "$report_url" &
+        elif command -v firefox &>/dev/null; then
+            echo "🌐 Abrindo com Firefox..."
+            firefox "$report_url" &
+        elif command -v google-chrome &>/dev/null; then
+            echo "🌐 Abrindo com Chrome..."
+            google-chrome "$report_url" &
+        elif command -v chromium-browser &>/dev/null; then
+            echo "🌐 Abrindo com Chromium..."
+            chromium-browser "$report_url" &
         else
-            echo "⚠️  Não foi possível abrir automaticamente"
-            echo "📋 Acesse manualmente: $report_url"
+            echo "⚠️  Não foi possível abrir o navegador automaticamente."
+            echo "📋 Por favor, acesse manualmente: $report_url"
         fi
         
+        echo "🎯 Relatório disponível em: $report_url"
         return 0
     else
         echo "❌ Relatório não está acessível via HTTP"

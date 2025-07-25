@@ -368,7 +368,6 @@ start_report_server() {
 }
 
 # Função para abrir o relatório no navegador (versão corrigida)
-# Função para abrir o relatório no navegador (versão com nova janela forçada)
 open_report() {
     local report_file="$1"
     local report_name=$(basename "$report_file")
@@ -385,7 +384,7 @@ open_report() {
     if ! pgrep -f "python.*http.server.*$PORT" &>/dev/null && ! pgrep -f "python.*SimpleHTTPServer.*$PORT" &>/dev/null; then
         echo "🚀 Iniciando servidor web..."
         start_report_server
-        sleep 2
+        sleep 2  # Aguardar servidor inicializar
     else
         echo "✅ Servidor já está rodando"
     fi
@@ -421,62 +420,28 @@ open_report() {
     if curl -s -I "$report_url" >/dev/null 2>&1; then
         echo "✅ Relatório acessível em: $report_url"
         
-        # NOVA ABORDAGEM: Tentar múltiplos métodos com nova janela forçada
-        local opened=false
-        
-        # Método 1: Firefox com nova janela
-        if command -v firefox &>/dev/null && [[ "$opened" == false ]]; then
-            echo "🌐 Tentando abrir com Firefox (nova janela)..."
-            if firefox --new-window "$report_url" &>/dev/null & then
-                echo "✅ Firefox executado"
-                opened=true
-                sleep 2
-            fi
-        fi
-        
-        # Método 2: Google Chrome com nova janela
-        if command -v google-chrome &>/dev/null && [[ "$opened" == false ]]; then
-            echo "🌐 Tentando abrir com Google Chrome (nova janela)..."
-            if google-chrome --new-window "$report_url" &>/dev/null & then
-                echo "✅ Google Chrome executado"
-                opened=true
-                sleep 2
-            fi
-        fi
-        
-        # Método 3: Chromium com nova janela
-        if command -v chromium-browser &>/dev/null && [[ "$opened" == false ]]; then
-            echo "🌐 Tentando abrir com Chromium (nova janela)..."
-            if chromium-browser --new-window "$report_url" &>/dev/null & then
-                echo "✅ Chromium executado"
-                opened=true
-                sleep 2
-            fi
-        fi
-        
-        # Método 4: xdg-open como fallback
-        if [[ "$opened" == false ]]; then
-            echo "🌐 Usando xdg-open como fallback..."
-            if command -v xdg-open &>/dev/null; then
-                xdg-open "$report_url" &
-                echo "✅ xdg-open executado"
-                opened=true
-            fi
-        fi
-        
-        if [[ "$opened" == true ]]; then
-            echo "🎯 Relatório disponível em: $report_url"
-            echo ""
-            echo "📋 INSTRUÇÕES:"
-            echo "   - O navegador deve abrir em NOVA JANELA"
-            echo "   - Se não aparecer, verifique a barra de tarefas"
-            echo "   - Ou acesse manualmente: $report_url"
-            echo "   - Use Alt+Tab para encontrar a janela"
+        # Abrir o navegador
+        if command -v xdg-open &>/dev/null; then
+            echo "🌐 Abrindo com xdg-open..."
+            xdg-open "$report_url" &
+        elif command -v open &>/dev/null; then
+            echo "🌐 Abrindo com open..."
+            open "$report_url" &
+        elif command -v firefox &>/dev/null; then
+            echo "🌐 Abrindo com Firefox..."
+            firefox "$report_url" &
+        elif command -v google-chrome &>/dev/null; then
+            echo "🌐 Abrindo com Chrome..."
+            google-chrome "$report_url" &
+        elif command -v chromium-browser &>/dev/null; then
+            echo "🌐 Abrindo com Chromium..."
+            chromium-browser "$report_url" &
         else
-            echo "⚠️  Não foi possível abrir automaticamente"
-            echo "📋 Acesse manualmente: $report_url"
+            echo "⚠️  Não foi possível abrir o navegador automaticamente."
+            echo "📋 Por favor, acesse manualmente: $report_url"
         fi
         
+        echo "🎯 Relatório disponível em: $report_url"
         return 0
     else
         echo "❌ Relatório não está acessível via HTTP"

@@ -336,29 +336,156 @@ analyze_file() {
             return 1
         fi
         
-        # Calcular hashes
+        # Iniciar análise detalhada
+        local analysis_result=""
+        analysis_result+="📁 ANÁLISE DE ARQUIVO\n\n"
+        
+        # Informações básicas
         echo -e "${BLUE}[Informações Básicas]${NC}"
-        file "$file_path"
-        ls -la "$file_path"
+        analysis_result+="[Informações Básicas]\n"
+        
+        local file_info=$(file "$file_path" 2>/dev/null)
+        local file_size=$(stat -c%s "$file_path" 2>/dev/null || echo "N/A")
+        local file_date=$(stat -c%y "$file_path" 2>/dev/null || echo "N/A")
+        
+        echo "Nome: $(basename "$file_path")"
+        echo "Caminho: $file_path"
+        echo "Tipo: $file_info"
+        echo "Tamanho: $file_size bytes"
+        echo "Modificado: $file_date"
+        
+        analysis_result+="Nome: $(basename "$file_path")\n"
+        analysis_result+="Caminho: $file_path\n"
+        analysis_result+="Tipo: $file_info\n"
+        analysis_result+="Tamanho: $file_size bytes\n"
+        analysis_result+="Modificado: $file_date\n\n"
+        
         echo ""
         
+        # Calcular hashes
         echo -e "${BLUE}[Hashes]${NC}"
-        echo -n "MD5:    "
-        md5sum "$file_path" | cut -d ' ' -f 1
-        echo -n "SHA256: "
-        sha256sum "$file_path" | cut -d ' ' -f 1
-        echo ""
+        analysis_result+="[Hashes]\n"
         
-        # Simulação de análise de malware (para demonstração)
+        if command -v md5sum &>/dev/null; then
+            local md5_hash=$(md5sum "$file_path" | cut -d ' ' -f 1)
+            echo "MD5:    $md5_hash"
+            analysis_result+="MD5:    $md5_hash\n"
+        fi
+        
+        if command -v sha1sum &>/dev/null; then
+            local sha1_hash=$(sha1sum "$file_path" | cut -d ' ' -f 1)
+            echo "SHA1:   $sha1_hash"
+            analysis_result+="SHA1:   $sha1_hash\n"
+        fi
+        
+        if command -v sha256sum &>/dev/null; then
+            local sha256_hash=$(sha256sum "$file_path" | cut -d ' ' -f 1)
+            echo "SHA256: $sha256_hash"
+            analysis_result+="SHA256: $sha256_hash\n"
+        fi
+        
+        echo ""
+        analysis_result+="\n"
+        
+        # Análise de malware
         echo -e "${BLUE}[Análise de Malware]${NC}"
-        if [[ "$file_path" == *"eicar"* ]]; then
-            echo -e "${RED}[VirusTotal] AMEAÇA DETECTADA!${NC}"
-            echo "  Malicioso: 45 detecções"
-            echo "  Suspeito: 12 detecções"
-            echo "  Família: EICAR-Test-File"
+        analysis_result+="[Análise de Malware]\n"
+        
+        # Verificação básica por nome de arquivo
+        local is_suspicious=false
+        local suspicious_patterns=("eicar" "malware" "virus" "trojan" "backdoor" "keylogger")
+        
+        for pattern in "${suspicious_patterns[@]}"; do
+            if [[ "$(basename "$file_path" | tr '[:upper:]' '[:lower:]')" == *"$pattern"* ]]; then
+                is_suspicious=true
+                break
+            fi
+        done
+        
+        if [[ "$is_suspicious" == true ]]; then
+            echo -e "${RED}[Análise] ARQUIVO SUSPEITO DETECTADO!${NC}"
+            echo "  Status: Potencialmente malicioso"
+            echo "  Recomendação: Não executar"
+            echo "  Ação: Quarentena recomendada"
+            
+            analysis_result+="[Análise] ARQUIVO SUSPEITO DETECTADO!\n"
+            analysis_result+="Status: Potencialmente malicioso\n"
+            analysis_result+="Recomendação: Não executar\n"
+            analysis_result+="Ação: Quarentena recomendada\n"
         else
-            echo -e "${GREEN}[VirusTotal] Nenhuma ameaça detectada${NC}"
-            echo "  Arquivo limpo: 0 detecções"
+            echo -e "${GREEN}[Análise] Nenhuma ameaça óbvia detectada${NC}"
+            echo "  Status: Aparentemente limpo"
+            echo "  Recomendação: Verificação adicional recomendada"
+            
+            analysis_result+="[Análise] Nenhuma ameaça óbvia detectada\n"
+            analysis_result+="Status: Aparentemente limpo\n"
+            analysis_result+="Recomendação: Verificação adicional recomendada\n"
+        fi
+        
+        # Verificação de APIs se disponíveis
+        if [[ -f "$API_KEYS_FILE" && -n "$sha256_hash" ]]; then
+            source "$API_KEYS_FILE" 2>/dev/null
+            
+            # VirusTotal File Check
+            if [[ -n "$VIRUSTOTAL_API_KEY" ]]; then
+                echo -e "${BLUE}[VirusTotal]${NC}"
+                analysis_result+="[VirusTotal]\n"
+                
+                local vt_response=$(curl -s -X POST "https://www.virustotal.com/vtapi/v2/file/report" \
+                    -d "apikey=$VIRUSTOTAL_API_KEY&resource=$sha256_hash" 2>/dev/null)
+                
+                if [[ -n "$vt_response" ]]; then
+                    local positives=$(echo "$vt_response" | grep -o '"positives":[0-9]*' | cut -d':' -f2)
+                    local total=$(echo "$vt_response" | grep -o '"total":[0-9]*' | cut -d':' -f2)
+                    
+                    if [[ -n "$positives" && -n "$total" ]]; then
+                        if [[ $positives -gt 0 ]]; then
+                            echo "Detecções: $positives/$total engines"
+                            analysis_result+="Detecções: $positives/$total engines\n"
+                        else
+                            echo "Arquivo limpo: 0/$total engines"
+                            analysis_result+="Arquivo limpo: 0/$total engines\n"
+                        fi
+                    else
+                        echo "Hash não encontrado na base de dados"
+                        analysis_result+="Hash não encontrado na base de dados\n"
+                    fi
+                else
+                    echo "Erro na consulta VirusTotal"
+                    analysis_result+="Erro na consulta VirusTotal\n"
+                fi
+            fi
+        fi
+        
+        analysis_result+="\nAnálise concluída em $(date '+%Y-%m-%d %H:%M:%S')\n"
+        
+        # Gerar relatório HTML se as funções estiverem disponíveis
+        if declare -f generate_html_report >/dev/null 2>&1; then
+            echo ""
+            echo -e "${CYAN}📄 Gerando relatório HTML...${NC}"
+            
+            local report_file=$(generate_html_report "Arquivo" "$(basename "$file_path")" "$analysis_result")
+            
+            if [[ -f "$report_file" ]]; then
+                echo -e "${GREEN}✅ Relatório HTML gerado: $(basename "$report_file")${NC}"
+                
+                echo -n "Deseja abrir o relatório no navegador? (s/n): "
+                read -r open_browser
+                
+                if [[ "$open_browser" =~ ^[Ss]$ ]]; then
+                    if declare -f open_report >/dev/null 2>&1; then
+                        open_report "$report_file"
+                    else
+                        echo "Função open_report não disponível"
+                        echo "Acesse manualmente: http://localhost:8080/$(basename "$report_file")"
+                    fi
+                fi
+            else
+                echo -e "${RED}❌ Erro ao gerar relatório HTML${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠️  Módulo de relatórios HTML não carregado${NC}"
+            echo "Para gerar relatórios HTML, certifique-se de que html_report.sh está disponível"
         fi
         
         log_message "Arquivo analisado: $file_path"
@@ -410,28 +537,165 @@ analyze_domain() {
         echo -e "${YELLOW}Iniciando análise do domínio: $domain${NC}"
         echo ""
         
-        # Simulação de análise de domínio (para demonstração)
-        echo -e "${BLUE}[Informações do Domínio]${NC}"
-        echo "Domínio: $domain"
-        echo ""
+        # Validar formato do domínio
+        if [[ ! "$domain" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$ ]]; then
+            echo -e "${RED}Erro: Formato de domínio inválido${NC}"
+            return 1
+        fi
         
+        # Iniciar análise detalhada
+        local analysis_result=""
+        analysis_result+="🏠 ANÁLISE DE DOMÍNIO\n\n"
+        analysis_result+="[Informações Básicas]\n"
+        analysis_result+="Domínio: $domain\n"
+        analysis_result+="Data da análise: $(date '+%d/%m/%Y %H:%M:%S')\n\n"
+        
+        # Resolução DNS
         echo -e "${BLUE}[Resolução DNS]${NC}"
+        analysis_result+="[Resolução DNS]\n"
+        
         if command -v dig &> /dev/null; then
-            dig +short "$domain" A
-            dig +short "$domain" MX
+            local dns_a=$(dig +short "$domain" A 2>/dev/null | head -5)
+            local dns_mx=$(dig +short "$domain" MX 2>/dev/null | head -5)
+            local dns_ns=$(dig +short "$domain" NS 2>/dev/null | head -5)
+            local dns_txt=$(dig +short "$domain" TXT 2>/dev/null | head -3)
+            
+            if [[ -n "$dns_a" ]]; then
+                echo "Registros A: $dns_a"
+                analysis_result+="Registros A: $dns_a\n"
+            fi
+            
+            if [[ -n "$dns_mx" ]]; then
+                echo "Registros MX: $dns_mx"
+                analysis_result+="Registros MX: $dns_mx\n"
+            fi
+            
+            if [[ -n "$dns_ns" ]]; then
+                echo "Registros NS: $dns_ns"
+                analysis_result+="Registros NS: $dns_ns\n"
+            fi
+            
+            if [[ -n "$dns_txt" ]]; then
+                echo "Registros TXT: $dns_txt"
+                analysis_result+="Registros TXT: $dns_txt\n"
+            fi
         else
             echo "Ferramenta 'dig' não encontrada. Instale o pacote dnsutils."
+            analysis_result+="Erro: Ferramenta 'dig' não encontrada\n"
         fi
         echo ""
+        analysis_result+="\n"
         
-        echo -e "${BLUE}[Análise de Reputação]${NC}"
-        if [[ "$domain" == *"malicious"* || "$domain" == *"phishing"* ]]; then
-            echo -e "${RED}[Shodan] DOMÍNIO SUSPEITO DETECTADO!${NC}"
-            echo "  Categoria: Malicioso"
-            echo "  Risco: Alto"
+        # Informações WHOIS
+        echo -e "${BLUE}[Informações WHOIS]${NC}"
+        analysis_result+="[Informações WHOIS]\n"
+        
+        if command -v whois &> /dev/null; then
+            local whois_info=$(timeout 10 whois "$domain" 2>/dev/null | head -20)
+            if [[ -n "$whois_info" ]]; then
+                echo "$whois_info" | head -10
+                analysis_result+="$whois_info\n"
+            else
+                echo "Informações WHOIS não disponíveis"
+                analysis_result+="Informações WHOIS não disponíveis\n"
+            fi
         else
-            echo -e "${GREEN}[Shodan] Nenhuma ameaça detectada${NC}"
-            echo "  Reputação: Limpa"
+            echo "Ferramenta 'whois' não encontrada."
+            analysis_result+="Erro: Ferramenta 'whois' não encontrada\n"
+        fi
+        echo ""
+        analysis_result+="\n"
+        
+        # Análise de Reputação
+        echo -e "${BLUE}[Análise de Reputação]${NC}"
+        analysis_result+="[Análise de Reputação]\n"
+        
+        # Verificação básica de domínios suspeitos
+        local is_suspicious=false
+        local suspicious_keywords=("malicious" "phishing" "spam" "scam" "fake" "fraud" "hack")
+        
+        for keyword in "${suspicious_keywords[@]}"; do
+            if [[ "$domain" == *"$keyword"* ]]; then
+                is_suspicious=true
+                break
+            fi
+        done
+        
+        if [[ "$is_suspicious" == true ]]; then
+            echo -e "${RED}[Análise] DOMÍNIO SUSPEITO DETECTADO!${NC}"
+            echo "  Categoria: Potencialmente malicioso"
+            echo "  Risco: Alto"
+            echo "  Recomendação: Evitar acesso"
+            
+            analysis_result+="[Análise] DOMÍNIO SUSPEITO DETECTADO!\n"
+            analysis_result+="Categoria: Potencialmente malicioso\n"
+            analysis_result+="Risco: Alto\n"
+            analysis_result+="Recomendação: Evitar acesso\n"
+        else
+            echo -e "${GREEN}[Análise] Nenhuma ameaça óbvia detectada${NC}"
+            echo "  Reputação: Aparentemente limpa"
+            echo "  Risco: Baixo"
+            
+            analysis_result+="[Análise] Nenhuma ameaça óbvia detectada\n"
+            analysis_result+="Reputação: Aparentemente limpa\n"
+            analysis_result+="Risco: Baixo\n"
+        fi
+        
+        # Verificação de APIs se disponíveis
+        if [[ -f "$API_KEYS_FILE" ]]; then
+            source "$API_KEYS_FILE" 2>/dev/null
+            
+            # VirusTotal Domain Check
+            if [[ -n "$VIRUSTOTAL_API_KEY" ]]; then
+                echo -e "${BLUE}[VirusTotal]${NC}"
+                analysis_result+="[VirusTotal]\n"
+                
+                local vt_response=$(curl -s "https://www.virustotal.com/vtapi/v2/domain/report?apikey=$VIRUSTOTAL_API_KEY&domain=$domain" 2>/dev/null)
+                if [[ -n "$vt_response" ]]; then
+                    local detected_urls=$(echo "$vt_response" | grep -o '"detected_urls":\[[^]]*\]' | wc -c)
+                    if [[ $detected_urls -gt 20 ]]; then
+                        echo "URLs maliciosas detectadas no domínio"
+                        analysis_result+="URLs maliciosas detectadas no domínio\n"
+                    else
+                        echo "Nenhuma URL maliciosa conhecida"
+                        analysis_result+="Nenhuma URL maliciosa conhecida\n"
+                    fi
+                else
+                    echo "Erro na consulta VirusTotal"
+                    analysis_result+="Erro na consulta VirusTotal\n"
+                fi
+            fi
+        fi
+        
+        analysis_result+="\nAnálise concluída em $(date '+%Y-%m-%d %H:%M:%S')\n"
+        
+        # Gerar relatório HTML se as funções estiverem disponíveis
+        if declare -f generate_html_report >/dev/null 2>&1; then
+            echo ""
+            echo -e "${CYAN}📄 Gerando relatório HTML...${NC}"
+            
+            local report_file=$(generate_html_report "Domínio" "$domain" "$analysis_result")
+            
+            if [[ -f "$report_file" ]]; then
+                echo -e "${GREEN}✅ Relatório HTML gerado: $(basename "$report_file")${NC}"
+                
+                echo -n "Deseja abrir o relatório no navegador? (s/n): "
+                read -r open_browser
+                
+                if [[ "$open_browser" =~ ^[Ss]$ ]]; then
+                    if declare -f open_report >/dev/null 2>&1; then
+                        open_report "$report_file"
+                    else
+                        echo "Função open_report não disponível"
+                        echo "Acesse manualmente: http://localhost:8080/$(basename "$report_file")"
+                    fi
+                fi
+            else
+                echo -e "${RED}❌ Erro ao gerar relatório HTML${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠️  Módulo de relatórios HTML não carregado${NC}"
+            echo "Para gerar relatórios HTML, certifique-se de que html_report.sh está disponível"
         fi
         
         log_message "Domínio analisado: $domain"
