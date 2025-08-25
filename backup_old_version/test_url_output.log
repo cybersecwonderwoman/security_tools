@@ -1,0 +1,59 @@
+[1;33mVerificando dependências...[0m
+[0;32m✓ curl encontrado[0m
+[0;32m✓ jq encontrado[0m
+[0;32m✓ dig encontrado[0m
+[0;32m✓ whois encontrado[0m
+[0;32m✓ file encontrado[0m
+[0;32m✓ md5sum encontrado[0m
+[0;32m✓ sha256sum encontrado[0m
+[0;32m✓ python3 encontrado[0m
+[0;32mTodas as dependências estão instaladas![0m
+
+[H[2J[3J[0;36m
+╔══════════════════════════════════════════════════════════════════════════════╗
+║   ███████╗███████╗ ██████╗██╗   ██╗██████╗ ██╗████████╗██╗   ██╗            ║
+║   ██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝            ║
+║   ███████╗█████╗  ██║     ██║   ██║██████╔╝██║   ██║    ╚████╔╝             ║
+║   ╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██║   ██║     ╚██╔╝              ║
+║   ███████║███████╗╚██████╗╚██████╔╝██║  ██║██║   ██║      ██║               ║
+║   ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝               ║
+║                                                                              ║
+║   ████████╗ ██████╗  ██████╗ ██╗                                            ║
+║   ╚══██╔══╝██╔═══██╗██╔═══██╗██║                                            ║
+║      ██║   ██║   ██║██║   ██║██║                                            ║
+║      ██║   ██║   ██║██║   ██║██║                                            ║
+║      ██║   ╚██████╔╝╚██████╔╝███████╗                                       ║
+║      ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝                                       ║
+║                                                                              ║
+║                    🛡️  FERRAMENTA AVANÇADA DE SEGURANÇA  🛡️                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+[0m
+[0;35m                           @cybersecwonderwoman[0m
+
+[1;33m╔══════════════════════════════════════════════════════════════════════════════╗[0m
+[1;33m║                              MENU PRINCIPAL                                 ║[0m
+[1;33m╚══════════════════════════════════════════════════════════════════════════════╝[0m
+
+[0;32m  [1] 📁 Analisar Arquivo[0m          - Verificar arquivos suspeitos
+[0;32m  [2] 🌐 Analisar URL[0m             - Verificar links maliciosos
+[0;32m  [3] 🏠 Analisar Domínio[0m         - Investigar domínios suspeitos
+[0;32m  [4] 🔢 Analisar Hash[0m            - Consultar hashes em bases de dados
+[0;32m  [5] 📧 Analisar Email[0m           - Verificar endereços de email
+[0;32m  [6] 📋 Analisar Cabeçalho[0m       - Analisar headers de email
+[0;32m  [7] 🌐 Analisar IP[0m             - Verificar endereços IP suspeitos
+
+[0;34m  [8] ⚙️  Configurar APIs[0m          - Configurar chaves de acesso
+[0;34m  [9] 📊 Ver Estatísticas[0m         - Relatórios de uso
+[0;34m  [10] 📈 Relatórios HTML[0m         - Gerenciar relatórios HTML
+[0;34m  [11] 📝 Ver Logs[0m                 - Visualizar logs de análise
+[0;34m  [12] 🧪 Executar Testes[0m         - Testar funcionalidades
+
+[0;36m  [13] 📚 Ajuda[0m                   - Manual de uso (via navegador)
+[0;36m  [14] ℹ️  Sobre[0m                   - Informações da ferramenta
+
+[0;31m  [0] 🚪 Sair[0m                     - Encerrar programa
+
+[1;33m╔══════════════════════════════════════════════════════════════════════════════╗[0m
+[1;33m║ Digite o número da opção desejada:                                          ║[0m
+[1;33m╚══════════════════════════════════════════════════════════════════════════════╝[0m
+➤ 
